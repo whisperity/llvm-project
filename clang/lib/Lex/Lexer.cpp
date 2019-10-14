@@ -3470,7 +3470,15 @@ LexNextToken:
 
   // C99 6.4.6: Punctuators.
   case '?':
-    Kind = tok::question;
+    Char = getCharAndSize(CurPtr, SizeTmp);
+    if (Char == '-' && LangOpts.CPlusPlus &&
+        getCharAndSize(CurPtr + SizeTmp, SizeTmp2) == '>') { // C++ ?->
+      CurPtr =
+          ConsumeChar(ConsumeChar(CurPtr, SizeTmp, Result), SizeTmp2, Result);
+      Kind = tok::questionarrow;
+    } else {
+      Kind = tok::question;
+    }
     break;
   case '[':
     Kind = tok::l_square;

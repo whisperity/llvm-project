@@ -355,6 +355,10 @@ CAST_OPERATION(IntToOCLSampler)
 // [C++ 5.5] Pointer-to-member operators.
 BINARY_OPERATION(PtrMemD, ".*")
 BINARY_OPERATION(PtrMemI, "->*")
+
+// [C++ Proposed extension] Null-conditional referencing.
+BINARY_OPERATION(CondDeref, "?->")
+
 // [C99 6.5.5] Multiplicative operators.
 BINARY_OPERATION(Mul, "*")
 BINARY_OPERATION(Div, "/")

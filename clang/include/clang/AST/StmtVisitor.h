@@ -47,6 +47,7 @@ public:
       switch (BinOp->getOpcode()) {
       case BO_PtrMemD:   DISPATCH(BinPtrMemD,   BinaryOperator);
       case BO_PtrMemI:   DISPATCH(BinPtrMemI,   BinaryOperator);
+      case BO_CondDeref: DISPATCH(BinCondDeref, BinaryOperator);
       case BO_Mul:       DISPATCH(BinMul,       BinaryOperator);
       case BO_Div:       DISPATCH(BinDiv,       BinaryOperator);
       case BO_Rem:       DISPATCH(BinRem,       BinaryOperator);
@@ -123,6 +124,7 @@ public:
     DISPATCH(BinaryOperator, BinaryOperator); \
   }
   BINOP_FALLBACK(PtrMemD)                    BINOP_FALLBACK(PtrMemI)
+  BINOP_FALLBACK(CondDeref)
   BINOP_FALLBACK(Mul)   BINOP_FALLBACK(Div)  BINOP_FALLBACK(Rem)
   BINOP_FALLBACK(Add)   BINOP_FALLBACK(Sub)  BINOP_FALLBACK(Shl)
   BINOP_FALLBACK(Shr)

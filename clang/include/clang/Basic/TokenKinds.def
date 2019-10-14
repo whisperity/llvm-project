@@ -220,6 +220,9 @@ PUNCTUATOR(periodstar,          ".*")
 PUNCTUATOR(arrowstar,           "->*")
 PUNCTUATOR(coloncolon,          "::")
 
+// C++ Extension: null-conditional referencing.
+PUNCTUATOR(questionarrow, "?->")
+
 // Objective C support.
 PUNCTUATOR(at,                  "@")
 

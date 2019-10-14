@@ -12236,6 +12236,7 @@ BinaryOperatorKind Sema::ConvertTokenKindToBinaryOpcode(tok::TokenKind Kind) {
   default: llvm_unreachable("Unknown binop!");
   case tok::periodstar:           Opc = BO_PtrMemD; break;
   case tok::arrowstar:            Opc = BO_PtrMemI; break;
+  case tok::questionarrow:        Opc = BO_CondDeref; break;
   case tok::star:                 Opc = BO_Mul; break;
   case tok::slash:                Opc = BO_Div; break;
   case tok::percent:              Opc = BO_Rem; break;
