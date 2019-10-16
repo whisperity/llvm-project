@@ -230,6 +230,11 @@ Improvements to clang-tidy
   finds and replaces cases that match the pattern ``var &&
   isa<X>(var)``, where ``var`` is evaluated twice.
 
+- New :doc:`modernize-superfluous-local-ptr-variable
+  <clang-tidy/checks/modernize-superfluous-local-ptr-variable>` check.
+
+  FIXME: add release notes.
+
 - New :doc:`modernize-use-trailing-return-type
   <clang-tidy/checks/modernize-use-trailing-return-type>` check.
 

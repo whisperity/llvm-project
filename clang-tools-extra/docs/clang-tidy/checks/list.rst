@@ -216,6 +216,7 @@ Clang-Tidy Checks
    modernize-replace-random-shuffle
    modernize-return-braced-init-list
    modernize-shrink-to-fit
+   modernize-superfluous-local-ptr-variable
    modernize-unary-static-assert
    modernize-use-auto
    modernize-use-bool-literals

@@ -19,6 +19,7 @@ add_clang_library(clangTidyModernizeModule
   ReplaceRandomShuffleCheck.cpp
   ReturnBracedInitListCheck.cpp
   ShrinkToFitCheck.cpp
+  SuperfluousLocalPtrVariableCheck.cpp
   UnaryStaticAssertCheck.cpp
   UseAutoCheck.cpp
   UseBoolLiteralsCheck.cpp
