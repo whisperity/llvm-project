@@ -18,33 +18,77 @@ namespace modernize {
 
 namespace {
 
+#if 0
 const char DeclId[] = "ptr-decl";
 const char UsageId[] = "usage";
+#endif
 
-const auto PtrDeclMatcher = varDecl(anyOf(
-    hasType(pointerType()), hasType(autoType(hasDeducedType(pointerType())))));
+const char InitedVarId[] = "inited-var";
+const char DereferencedPtrIdInInit[] = "derefed-ptr";
+
+const auto PointerLocalVarDecl =
+    varDecl(anyOf(hasType(pointerType()),
+                  hasType(autoType(hasDeducedType(pointerType())))),
+            unless(parmVarDecl()));
+
+const auto VarInitFromPtrDereference =
+    varDecl(hasInitializer(ignoringParenImpCasts(memberExpr(
+                isArrow(), hasDescendant(declRefExpr(to(PointerLocalVarDecl))
+                                             .bind(DereferencedPtrIdInInit))))))
+        .bind(InitedVarId);
+
+// ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
 
 // FIXME: Ignore usages in trivial (early-return or early-continue) 'if's.
 // FIXME: The real end goal of this check is to find a pair of ptrs created
-//        by dereferencing the first, i.e. this:
-//
-//        T* tp = ...;
-//        if (!tp) return; // This should be ignored.
-//        U* up = tp->something;
-//
-//        Having tp here is superfluous, use initializing if or ?-> :P
+//        by dereferencing the first.
 
 } // namespace
 
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(PtrDeclMatcher.bind(DeclId), this);
+  Finder->addMatcher(VarInitFromPtrDereference, this);
+
   // FIXME: Consider dereferencing as a "different" kind of usage, as that's
   //        the one that can be modernized, passing the ptr forward as an
   //        argument cannot.
-  Finder->addMatcher(declRefExpr(to(PtrDeclMatcher)).bind(UsageId), this);
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
+  if (const auto *VarInitFromDeref =
+          Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
+    /*llvm::errs() << "VARINIT FROM DEREF: ";
+    VarInitFromDeref->dump();
+    llvm::errs() << '\n';*/
+
+    const auto *DerefDre =
+        Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrIdInInit);
+    /*llvm::errs() << "DEREF EXPR: ";
+    DerefDre->dump();
+    llvm::errs() << '\n';*/
+
+    const auto *DerefVar = cast<VarDecl>(DerefDre->getDecl());
+
+    auto &ReferenceInfo = References[DerefVar];
+    if (!ReferenceInfo.hasUsage())
+      ReferenceInfo.setUsage(DerefDre);
+    else {
+      if (ReferenceInfo.getUsage() == DerefDre)
+        // If multiple matchers found the same usage, ignore.
+        return;
+
+      /*llvm::errs() << "Multiple usages found for var ";
+      DerefVar->dump();
+      llvm::errs() << "\n previous usage at: ";
+      ReferenceInfo.getUsage()->dump();
+      llvm::errs() << "\nMarking var as multiusage.\n";*/
+
+      References.erase(DerefVar);
+    }
+
+    return;
+  }
+
+#if 0
   if (const auto *MatchedVar = Result.Nodes.getNodeAs<VarDecl>(DeclId)) {
     if (isa<ParmVarDecl>(MatchedVar))
       // Function parameters should not match for this check as changing
@@ -75,6 +119,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
     UsageInfoIt->second.setUsage(MatchedUsage);
     return;
   }
+#endif
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
@@ -86,7 +131,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     const VarDecl *Variable = RefPair.first;
 
     diag(Usage->getLocation(),
-         "local pointer variable %0 only participates in a single dereference")
+         "local pointer variable %0 only participates in one dereference")
         << Usage->getDecl()
         << FixItHint::CreateReplacement(
                Usage->getSourceRange(),

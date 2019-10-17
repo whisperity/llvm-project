@@ -12,6 +12,7 @@
 #include "../ClangTidyCheck.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+//#include "llvm/ADT/SmallPtrSet.h" // FIXME: Enable this include.
 #include "llvm/ADT/TinyPtrVector.h"
 
 namespace clang {
@@ -19,6 +20,19 @@ namespace tidy {
 namespace modernize {
 
 /// Holds information about usages (referencing expressions) of a declaration.
+///
+/// This data structure is used to store in which context (expression or
+/// declaration) a previous declaration -- for the sake of this check, a
+/// dereference of a pointer variable declaration -- ???
+
+// FIXME: Perhaps multiple usages should also be tracked?
+//          T* t = ...;
+//          if (!t) return;
+//          U* u = t->u;
+//          W* w = t->w;
+//        still doesn't warrant 't' to be a thing, one could still just do
+//          U* u = t ? t->u : nullptr;  // t?->u
+//          W* w = t ? t->w : nullptr;  // t?->w
 class DeclUsageInfo {
 public:
   bool hasUsage() const { return !Usage.empty(); }
@@ -32,12 +46,17 @@ private:
   // Size is 1 is as we normally only care for variables that are referenced
   // only once.
   llvm::TinyPtrVector<const DeclRefExpr *> Usage;
-  llvm::SmallVector<const DeclRefExpr *, 2> IgnoredUsages;
+  llvm::SmallVector<const DeclRefExpr *, 2> IgnoredUsages; // FIXME: SmallPtrSet
 };
 
 using ReferencingMap = llvm::DenseMap<const VarDecl *, DeclUsageInfo>;
 
 /// FIXME: Write a short description.
+///        T* tp = ...;
+///        if (!tp) return; // This should be ignored.
+///        U* up = tp->something;
+///
+///        Having tp here is superfluous, use initializing if or ?-> :P
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/modernize-superfluous-local-ptr-variable.html

@@ -2,37 +2,65 @@
 
 class T {
 public:
+  int i;
   T *tp;
 };
 template <typename T>
 T *create();
 
-void test_trivial_member_access() {
-  T *t = create<T>();
-  (void)t->tp;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: local pointer variable 't' only participates in a single dereference [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't' defined here
+void test_single_member_access() {
+  T *t1 = create<T>();
+  (void)t1->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: local pointer variable 't1' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't1' defined here
 }
 
-void test_trivial_auto() {
-  auto *t = create<T>();
-  (void)t->tp;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: warning: local pointer variable 't' only participates in a single dereference [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: 't' defined here
+void test_single_member_to_variable() {
+  T *t2 = create<T>();
+  int i = t2->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't2' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't2' defined here
 }
 
-void test_parameter(T *t) {
-  (void)t->tp;
-  // NO-WARN: Removal of parameter would change API, which we don't want.
+/*void F()
+{
+  T* t = create<T>();
+  auto i = t->i;
+  auto tp = t->tp;
 }
 
-void test_no_uses() {
-  T *t = create<T>();
-  // NO-WARN: There are plenty of other checks and lint for unused variables.
-}
+void G()
+{
+  T* t = create<T>();
+  auto i = t->i;
+}*/
 
-void test_multiple_uses() {
-  T *t = create<T>();
-  (void)t->tp;
-  (void)t->tp;
-}
+/* Some if statements: */
+/*
+ if (t)
+    return;
+
+  if (t == nullptr)
+    return;
+
+  if (t != nullptr)
+    return;
+
+  if (t->i < 0)
+    return;
+
+  if (!t)
+    return;
+
+  for (;;) {
+    if (t)
+      continue;
+
+    if (t) {
+      continue;
+    }
+  }
+
+  if (t)
+    ++t->i;
+*/
