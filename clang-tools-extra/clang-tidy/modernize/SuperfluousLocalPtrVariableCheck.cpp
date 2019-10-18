@@ -178,7 +178,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
   }
 }
 
-void DeclUsageInfo::setUsage(const DeclRefExpr *DRE) {
+void PtrVarDeclUsageCollection::setUsage(const DeclRefExpr *DRE) {
   // QUESTION: SmallVector has no .find()?
   for (const auto &E : IgnoredUsages)
     if (E == DRE)
@@ -189,7 +189,7 @@ void DeclUsageInfo::setUsage(const DeclRefExpr *DRE) {
   Usage.push_back(DRE);
 }
 
-void DeclUsageInfo::ignoreUsage(const DeclRefExpr *DRE) {
+void PtrVarDeclUsageCollection::ignoreUsage(const DeclRefExpr *DRE) {
   IgnoredUsages.push_back(DRE);
 }
 

@@ -38,6 +38,23 @@ void test_multiple_declref() {
   // NO-WARN: t3 passed to function call, this snippet could not be refactored.
 }
 
+int test_initialise_nonmember_deref() {
+  T *t4 = create<T>();
+  T t_inst = *t4; // dereference, but not member access.
+  // FIXME: Report the dereference?
+  return t_inst.i;
+}
+
+int test_noninitalising_deref() {
+  T *t5 = create<T>();
+  int i;
+  i = 0;
+  i = i + t5->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't5' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't5' defined here
+  return i;
+}
+
 /*void F()
 {
   T* t = create<T>();
@@ -52,6 +69,8 @@ void G()
 }*/
 
 /* Some if statements: */
+// FIXME: Handle if statements not as usages and parameter passes but in a
+//        special way, registering they denote a null-check.
 /*
  if (t)
     return;
