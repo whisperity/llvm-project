@@ -8,6 +8,8 @@ public:
 template <typename T>
 T *create();
 
+void free(void *p);
+
 void test_single_member_access() {
   T *t1 = create<T>();
   (void)t1->i;
@@ -20,6 +22,20 @@ void test_single_member_to_variable() {
   int i = t2->i;
   // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't2' only participates in one dereference [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't2' defined here
+}
+
+void test_single_access_auto_type() {
+  auto instance = create<T>();
+  auto member = instance->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:17: warning: local pointer variable 'instance' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:8: note: 'instance' defined here
+}
+
+void test_multiple_declref() {
+  T *t3 = create<T>(); // "allocates"
+  T *t3next = t3->tp;
+  free(t3);
+  // NO-WARN: t3 passed to function call, this snippet could not be refactored.
 }
 
 /*void F()

@@ -24,13 +24,20 @@ const char UsageId[] = "usage";
 #endif
 
 const char InitedVarId[] = "inited-var";
+const char UsedPtrId[] = "used-ptr";
 const char DereferencedPtrIdInInit[] = "derefed-ptr";
 
+/// Matches pointer-type variables that are local to the function.
+// TODO: Later on this check could be broadened to work with references, too.
 const auto PointerLocalVarDecl =
     varDecl(anyOf(hasType(pointerType()),
                   hasType(autoType(hasDeducedType(pointerType())))),
             unless(parmVarDecl()));
 
+/// Matches every usage of a local pointer variable.
+const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl)).bind(UsedPtrId);
+
+/// Matches variables that are initialised by dereferencing a local ptr.
 const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(memberExpr(
                 isArrow(), hasDescendant(declRefExpr(to(PointerLocalVarDecl))
@@ -43,10 +50,28 @@ const auto VarInitFromPtrDereference =
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
 
+/// Sets the usage DeclRefExpr for 'For' to the argument. Returns false if
+/// 'For' had already been marked as used and thus no set took place.
+bool trySetDefiniteUsagePoint(ReferencingMap &References, const VarDecl *For,
+                              const DeclRefExpr *Usage) {
+  auto &ReferenceInfo = References[For];
+  if (!ReferenceInfo.hasUsage()) {
+    ReferenceInfo.setUsage(Usage);
+    return true;
+  }
+
+  if (ReferenceInfo.getUsage() == Usage)
+    // If multiple matchers found the same usage, ignore.
+    return true;
+
+  return false;
+}
+
 } // namespace
 
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(VarInitFromPtrDereference, this);
+  Finder->addMatcher(PtrVarUsage, this);
 
   // FIXME: Consider dereferencing as a "different" kind of usage, as that's
   //        the one that can be modernized, passing the ptr forward as an
@@ -68,13 +93,25 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 
     const auto *DerefVar = cast<VarDecl>(DerefDre->getDecl());
 
-    auto &ReferenceInfo = References[DerefVar];
-    if (!ReferenceInfo.hasUsage())
-      ReferenceInfo.setUsage(DerefDre);
-    else {
-      if (ReferenceInfo.getUsage() == DerefDre)
-        // If multiple matchers found the same usage, ignore.
-        return;
+    if (!trySetDefiniteUsagePoint(References, DerefVar, DerefDre)) {
+      // Multiple usages have been found, ignore this VarDecl.
+
+      /*llvm::errs() << "Multiple usages found for var ";
+      DerefVar->dump();
+      llvm::errs() << "\n previous usage at: ";
+      ReferenceInfo.getUsage()->dump();
+      llvm::errs() << "\nMarking var as multiusage.\n";*/
+
+      References.erase(DerefVar);
+    }
+
+    return;
+  }
+
+  if (const auto *PtrDRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
+    const auto *DerefVar = cast<VarDecl>(PtrDRE->getDecl());
+    if (!trySetDefiniteUsagePoint(References, DerefVar, PtrDRE)) {
+      // Multiple usages have been found, ignore this VarDecl.
 
       /*llvm::errs() << "Multiple usages found for var ";
       DerefVar->dump();
@@ -132,10 +169,10 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 
     diag(Usage->getLocation(),
          "local pointer variable %0 only participates in one dereference")
-        << Usage->getDecl()
-        << FixItHint::CreateReplacement(
-               Usage->getSourceRange(),
-               (Twine(Variable->getName()) + "?").str());
+        << Usage->getDecl();
+    /*<< FixItHint::CreateReplacement(
+           Usage->getSourceRange(),
+           (Twine(Variable->getName()) + "?").str());*/
     diag(Variable->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << Variable;
   }
