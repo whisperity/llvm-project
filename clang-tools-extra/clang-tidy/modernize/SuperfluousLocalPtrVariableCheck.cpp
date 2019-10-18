@@ -26,6 +26,7 @@ const char UsageId[] = "usage";
 const char InitedVarId[] = "inited-var";
 const char UsedPtrId[] = "used-ptr";
 const char DereferencedPtrIdInInit[] = "derefed-ptr";
+const char MemberExprId[] = "mem-expr";
 
 /// Matches pointer-type variables that are local to the function.
 // TODO: Later on this check could be broadened to work with references, too.
@@ -39,9 +40,11 @@ const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl)).bind(UsedPtrId);
 
 /// Matches variables that are initialised by dereferencing a local ptr.
 const auto VarInitFromPtrDereference =
-    varDecl(hasInitializer(ignoringParenImpCasts(memberExpr(
-                isArrow(), hasDescendant(declRefExpr(to(PointerLocalVarDecl))
-                                             .bind(DereferencedPtrIdInInit))))))
+    varDecl(hasInitializer(ignoringParenImpCasts(
+                memberExpr(isArrow(),
+                           hasDescendant(declRefExpr(to(PointerLocalVarDecl))
+                                             .bind(DereferencedPtrIdInInit)))
+                    .bind(MemberExprId))))
         .bind(InitedVarId);
 
 // ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
@@ -49,23 +52,6 @@ const auto VarInitFromPtrDereference =
 // FIXME: Ignore usages in trivial (early-return or early-continue) 'if's.
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
-
-/// Sets the usage DeclRefExpr for 'For' to the argument. Returns false if
-/// 'For' had already been marked as used and thus no set took place.
-bool trySetDefiniteUsagePoint(ReferencingMap &References, const VarDecl *For,
-                              const DeclRefExpr *Usage) {
-  auto &ReferenceInfo = References[For];
-  if (!ReferenceInfo.hasUsage()) {
-    ReferenceInfo.setUsage(Usage);
-    return true;
-  }
-
-  if (ReferenceInfo.getUsage() == Usage)
-    // If multiple matchers found the same usage, ignore.
-    return true;
-
-  return false;
-}
 
 } // namespace
 
@@ -79,21 +65,14 @@ void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
-  if (const auto *VarInitFromDeref =
-          Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
-    /*llvm::errs() << "VARINIT FROM DEREF: ";
-    VarInitFromDeref->dump();
-    llvm::errs() << '\n';*/
-
-    const auto *DerefDre =
+  if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
+    const auto *DeferExpr =
         Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrIdInInit);
-    /*llvm::errs() << "DEREF EXPR: ";
-    DerefDre->dump();
-    llvm::errs() << '\n';*/
+    const auto *DerefPtrVar = cast<VarDecl>(DerefDre->getDecl());
 
-    const auto *DerefVar = cast<VarDecl>(DerefDre->getDecl());
+    References[DerefPtrVar].addUsage(new PtrVarDerefInit)
 
-    if (!trySetDefiniteUsagePoint(References, DerefVar, DerefDre)) {
+        if (!trySetDefiniteUsagePoint(References, DerefVar, DerefDre)) {
       // Multiple usages have been found, ignore this VarDecl.
 
       /*llvm::errs() << "Multiple usages found for var ";
