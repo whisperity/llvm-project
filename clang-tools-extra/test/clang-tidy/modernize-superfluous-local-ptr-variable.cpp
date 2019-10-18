@@ -10,6 +10,13 @@ T *create();
 
 void free(void *p);
 
+void test_local_variable() {
+  T *t = create<T>();
+  // NO-WARN: Compiler, IDE warning exists for unused variables.
+}
+
+// FIXME: Figure out better warning messages and make these tests show what we want.
+
 void test_single_member_access() {
   T *t1 = create<T>();
   (void)t1->i;

@@ -160,7 +160,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
-  for (const auto &RefPair : References) {
+  /*for (const auto &RefPair : References) {
     const DeclRefExpr *Usage = RefPair.second.getUsage();
     if (!Usage)
       continue;
@@ -170,27 +170,69 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     diag(Usage->getLocation(),
          "local pointer variable %0 only participates in one dereference")
         << Usage->getDecl();
-    /*<< FixItHint::CreateReplacement(
-           Usage->getSourceRange(),
-           (Twine(Variable->getName()) + "?").str());*/
+    //<< FixItHint::CreateReplacement(
+    //       Usage->getSourceRange(),
+    //       (Twine(Variable->getName()) + "?").str());
     diag(Variable->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << Variable;
+  }*/
+}
+
+bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
+  assert(UsageInfo && "provide a valid UsageInfo instance");
+  if (isIgnored(UsageInfo->getUsageExpr()))
+    return false;
+
+  for (const PtrVarDeclUsageInfo *DUI : CollectedUses)
+    if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr())
+      return false;
+
+  CollectedUses.push_back(UsageInfo);
+  return true;
+}
+
+bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
+                                             PtrVarDeclUsageInfo *NewInfo) {
+  assert(OldInfo && NewInfo && "provide valid UsageInfo instances");
+  assert(OldInfo != NewInfo && "replacement of usage info with same instance");
+
+  if (isIgnored(NewInfo->getUsageExpr()))
+    return false;
+
+  size_t OldInfoIdx = 0;
+  bool OldInfoFound = false;
+  for (size_t Idx = 0; Idx < CollectedUses.size(); ++Idx) {
+    if (CollectedUses[Idx] == NewInfo ||
+        CollectedUses[Idx]->getUsageExpr() == NewInfo->getUsageExpr())
+      return false;
+
+    if (CollectedUses[Idx] == OldInfo) {
+      OldInfoFound = true;
+      OldInfoIdx = Idx;
+    }
   }
+  assert(OldInfoFound && "replacement of usage that was not added before");
+
+  CollectedUses[OldInfoIdx] = NewInfo;
+  delete OldInfo;
 }
 
-void PtrVarDeclUsageCollection::setUsage(const DeclRefExpr *DRE) {
-  // QUESTION: SmallVector has no .find()?
-  for (const auto &E : IgnoredUsages)
-    if (E == DRE)
-      return;
-
-  if (hasUsage())
-    Usage.pop_back();
-  Usage.push_back(DRE);
+template <PtrVarDeclUsageInfo::DUIKind Kind>
+PtrVarDeclUsageInfo *
+PtrVarDeclUsageCollection::getNthUsageOfKind(size_t N) const {
+  size_t Counter = 0;
+  for (PtrVarDeclUsageInfo *DUI : CollectedUses) {
+    if (DUI->getKind() == Kind) {
+      if (++Counter == N)
+        return DUI;
+    }
+  }
+  return nullptr;
 }
 
-void PtrVarDeclUsageCollection::ignoreUsage(const DeclRefExpr *DRE) {
-  IgnoredUsages.push_back(DRE);
+PtrVarDeclUsageCollection::~PtrVarDeclUsageCollection() {
+  for (PtrVarDeclUsageInfo *DUI : CollectedUses)
+    delete DUI;
 }
 
 } // namespace modernize

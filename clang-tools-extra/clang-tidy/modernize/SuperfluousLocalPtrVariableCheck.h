@@ -13,21 +13,17 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Support/Casting.h"
 
 namespace clang {
 namespace tidy {
 namespace modernize {
 
-/// Holds information about usages (referencing expressions) of a declaration.
-///
-/// This data structure is used to store in which context (expression or
-/// declaration) a previous declaration -- for the sake of this check, a
-/// dereference of a pointer variable declaration -- ???
-
 // QUESTION: Should these things be put into a namespace under modernize?
 
+/// Base class of a usage info for pointer variables. This class acts as a
+/// small (few pointers only) hook tieing nodes of an AST together for the
+/// purpose of this check and its diagnostics.
 struct PtrVarDeclUsageInfo {
   enum DUIKind {
     DUIK_ParamPassing, //< Represents a "read" of the pointer as an argument.
@@ -44,7 +40,6 @@ protected:
 
 private:
   const DUIKind Kind;
-
   const DeclRefExpr *RefExpr;
 };
 
@@ -62,17 +57,8 @@ struct PtrVarDereference : PtrVarDeclUsageInfo {
   PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
       : PtrVarDereference(UsageRef, UsageExpr, DUIK_Dereference) {}
 
-  bool isUnaryDereference() const { return UnaryDeref; }
-  const UnaryOperator *getUnaryOperator() const {
-    assert(UnaryDeref && "not a unary dereference usage.");
-    return UnaryDeref;
-  }
-
-  bool isMemberAccessDereference() const { return MemberRef; }
-  const MemberExpr *getMemberExpr() const {
-    assert(MemberRef && "not a member access usage.");
-    return MemberRef;
-  }
+  const UnaryOperator *getUnaryOperator() const { return UnaryDeref; }
+  const MemberExpr *getMemberExpr() const { return MemberRef; }
 
 protected:
   PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr,
@@ -112,21 +98,45 @@ private:
 //        still doesn't warrant 't' to be a thing, one could still just do
 //          U* u = t ? t->u : nullptr;  // t?->u
 //          W* w = t ? t->w : nullptr;  // t?->w
-// FIXME: This should be changed to use the classes above.
+/// Holds information about usages (referencing expressions) of a declaration.
+///
+/// This data structure is used to store in which context (expression or
+/// declaration) a previous pointer variable declaration is used.
 class PtrVarDeclUsageCollection {
 public:
-  bool hasUsage() const { return !Usage.empty(); }
-  const DeclRefExpr *getUsage() const {
-    return hasUsage() ? Usage.front() : nullptr;
-  }
-  void setUsage(const DeclRefExpr *DRE);
-  void ignoreUsage(const DeclRefExpr *DRE);
+  using UseVector = llvm::SmallVector<PtrVarDeclUsageInfo *, 4>;
+
+  ~PtrVarDeclUsageCollection();
+
+  /// Adds the given usage info to the list of usages collected by the instance.
+  /// \returns true if an insertion took place, false otherwise (the UsageExpr
+  /// in UsageInfo is ignored, or this UsageInfo is already added).
+  /// \note Ownership of UsageInfo is transferred to the collection!
+  bool addUsage(PtrVarDeclUsageInfo *UsageInfo);
+
+  /// Adds the given new usage info into the list of usages collected in place
+  /// of the old info. If a replacement can take place, the instance pointed to
+  /// by OldInfo is destroyed in the process. Otherwise, OldInfo stays valid
+  /// and in the data structure.
+  /// \returns true if a replace took place, false otherwise (the UsageExpr
+  /// in NewInfo is ignored or NewInfo is already added).
+  /// \note Ownership of NewInfo is transferred to the collection!
+  bool replaceUsage(PtrVarDeclUsageInfo *OldInfo, PtrVarDeclUsageInfo *NewInfo);
+
+  bool hasUsages() const { return !CollectedUses.empty(); }
+  bool hasMultipleUsages() const { return CollectedUses.size() > 1; }
+
+  const UseVector &getUsages() const { return CollectedUses; }
+
+  template <PtrVarDeclUsageInfo::DUIKind Kind>
+  PtrVarDeclUsageInfo *getNthUsageOfKind(size_t N) const;
+
+  void ignoreUsageRef(const DeclRefExpr *DRE) { IgnoredUses.insert(DRE); }
+  bool isIgnored(const DeclRefExpr *DRE) { return IgnoredUses.count(DRE); }
 
 private:
-  // Size is 1 is as we normally only care for variables that are referenced
-  // only once.
-  llvm::TinyPtrVector<const DeclRefExpr *> Usage;
-  llvm::SmallVector<const DeclRefExpr *, 2> IgnoredUsages; // FIXME: SmallPtrSet
+  UseVector CollectedUses;
+  llvm::SmallPtrSet<const DeclRefExpr *, 4> IgnoredUses;
 };
 
 using ReferencingMap =
