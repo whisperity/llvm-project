@@ -10,6 +10,12 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
+// clang-format off
+// FIXME: Remove debug things.
+#define  DEBUG_TYPE "SuperfluousPtr"
+#include "llvm/Support/Debug.h"
+// clang-format on
+
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -17,11 +23,6 @@ namespace tidy {
 namespace modernize {
 
 namespace {
-
-#if 0
-const char DeclId[] = "ptr-decl";
-const char UsageId[] = "usage";
-#endif
 
 const char InitedVarId[] = "inited-var";
 const char UsedPtrId[] = "used-ptr";
@@ -58,88 +59,64 @@ const auto VarInitFromPtrDereference =
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(VarInitFromPtrDereference, this);
   Finder->addMatcher(PtrVarUsage, this);
-
-  // FIXME: Consider dereferencing as a "different" kind of usage, as that's
-  //        the one that can be modernized, passing the ptr forward as an
-  //        argument cannot.
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
-    const auto *DeferExpr =
+    const auto *RefExpr =
         Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrIdInInit);
-    const auto *DerefPtrVar = cast<VarDecl>(DerefDre->getDecl());
+    const auto *MemExpr = Result.Nodes.getNodeAs<MemberExpr>(MemberExprId);
+    const auto *RefPtrVar = cast<VarDecl>(RefExpr->getDecl());
 
-    References[DerefPtrVar].addUsage(new PtrVarDerefInit)
-
-        if (!trySetDefiniteUsagePoint(References, DerefVar, DerefDre)) {
-      // Multiple usages have been found, ignore this VarDecl.
-
-      /*llvm::errs() << "Multiple usages found for var ";
-      DerefVar->dump();
-      llvm::errs() << "\n previous usage at: ";
-      ReferenceInfo.getUsage()->dump();
-      llvm::errs() << "\nMarking var as multiusage.\n";*/
-
-      References.erase(DerefVar);
-    }
-
+    References[RefPtrVar].addUsage(
+        new PtrVarDerefInit{RefExpr, MemExpr, VarInit});
     return;
   }
 
   if (const auto *PtrDRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
-    const auto *DerefVar = cast<VarDecl>(PtrDRE->getDecl());
-    if (!trySetDefiniteUsagePoint(References, DerefVar, PtrDRE)) {
-      // Multiple usages have been found, ignore this VarDecl.
-
-      /*llvm::errs() << "Multiple usages found for var ";
-      DerefVar->dump();
-      llvm::errs() << "\n previous usage at: ";
-      ReferenceInfo.getUsage()->dump();
-      llvm::errs() << "\nMarking var as multiusage.\n";*/
-
-      References.erase(DerefVar);
-    }
-
+    const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
+    References[RefPtrVar].addUsage(new PtrVarParamPassing{PtrDRE});
     return;
   }
-
-#if 0
-  if (const auto *MatchedVar = Result.Nodes.getNodeAs<VarDecl>(DeclId)) {
-    if (isa<ParmVarDecl>(MatchedVar))
-      // Function parameters should not match for this check as changing
-      // arguments incurs API break.
-      return;
-
-    References.FindAndConstruct(MatchedVar);
-    return;
-  }
-
-  if (const auto *MatchedUsage = Result.Nodes.getNodeAs<DeclRefExpr>(UsageId)) {
-    const auto *ReferencedVar = dyn_cast<VarDecl>(MatchedUsage->getDecl());
-    if (!ReferencedVar)
-      llvm_unreachable(
-          "Matcher expression to VarDecl failed to match a VarDecl!");
-
-    auto UsageInfoIt = References.find(ReferencedVar);
-    if (UsageInfoIt == References.end())
-      // Referenced variable was found to have multiple references already.
-      return;
-
-    if (UsageInfoIt->second.hasUsage()) {
-      // If multiple usages are found, stop tracking the variable.
-      References.erase(UsageInfoIt);
-      return;
-    }
-
-    UsageInfoIt->second.setUsage(MatchedUsage);
-    return;
-  }
-#endif
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
-  /*for (const auto &RefPair : References) {
+  for (const auto &RefData : References) {
+    LLVM_DEBUG(
+        llvm::dbgs() << "Usages for ptr var " << RefData.first << '\n';
+        RefData.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';
+
+        for (const PtrVarDeclUsageInfo *Usage
+             : RefData.second.getUsages()) {
+          if (const auto *PassUsage = dyn_cast<PtrVarParamPassing>(Usage)) {
+            llvm::dbgs() << "Parameter was passed (\"read\") in the following "
+                            "expression:\n";
+            PassUsage->getUsageExpr()->dump(llvm::dbgs());
+            llvm::dbgs() << '\n';
+          }
+          if (const auto *DerefUsage = dyn_cast<PtrVarDereference>(Usage)) {
+            llvm::dbgs() << "This usage is a dereference. The dereference "
+                            "expression looks like this:\n";
+            if (const auto *UnaryOpExpr = DerefUsage->getUnaryOperator())
+              UnaryOpExpr->dump(llvm::dbgs());
+            else if (const auto *MemExpr = DerefUsage->getMemberExpr())
+              MemExpr->dump(llvm::dbgs());
+            llvm::dbgs() << '\n';
+          }
+          if (const auto *VarInitUsage = dyn_cast<PtrVarDerefInit>(Usage)) {
+            llvm::dbgs() << "This dereference initialises another variable!\n";
+            VarInitUsage->getInitialisedVar()->dump(llvm::dbgs());
+
+            llvm::dbgs() << '\n';
+          }
+
+          llvm::dbgs()
+              << "\n----------------------------------------------------\n";
+        });
+  }
+
+#if 0
+  for (const auto &RefPair : References) {
     const DeclRefExpr *Usage = RefPair.second.getUsage();
     if (!Usage)
       continue;
@@ -154,8 +131,11 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     //       (Twine(Variable->getName()) + "?").str());
     diag(Variable->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << Variable;
-  }*/
+  }
+#endif
 }
+
+// FIXME: Add debug prints to these data structure manipulators.
 
 bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
@@ -194,6 +174,7 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
 
   CollectedUses[OldInfoIdx] = NewInfo;
   delete OldInfo;
+  return true;
 }
 
 template <PtrVarDeclUsageInfo::DUIKind Kind>

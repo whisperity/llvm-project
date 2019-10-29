@@ -5,11 +5,27 @@ public:
   int i;
   T *tp;
 };
+
 template <typename T>
 T *create();
 
+template <typename T>
+void something(T &t);
+
 void free(void *p);
 
+void test() {
+  T *t = create<T>();
+  free(t);
+  something(*t);
+
+  (void)t->tp;
+
+  T *tp = t->tp;
+  free(t->tp);
+}
+
+#if 0
 void test_local_variable() {
   T *t = create<T>();
   // NO-WARN: Compiler, IDE warning exists for unused variables.
@@ -61,6 +77,7 @@ int test_noninitalising_deref() {
   // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't5' defined here
   return i;
 }
+#endif
 
 /*void F()
 {

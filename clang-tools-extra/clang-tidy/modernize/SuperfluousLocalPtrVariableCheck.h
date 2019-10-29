@@ -48,6 +48,10 @@ private:
 struct PtrVarParamPassing : PtrVarDeclUsageInfo {
   PtrVarParamPassing(const DeclRefExpr *Usage)
       : PtrVarDeclUsageInfo(Usage, DUIK_ParamPassing) {}
+
+  static bool classof(const PtrVarDeclUsageInfo *I) {
+    return I->getKind() == DUIK_ParamPassing;
+  }
 };
 
 /// Pointer dereferenced in some context:
@@ -59,6 +63,10 @@ struct PtrVarDereference : PtrVarDeclUsageInfo {
 
   const UnaryOperator *getUnaryOperator() const { return UnaryDeref; }
   const MemberExpr *getMemberExpr() const { return MemberRef; }
+
+  static bool classof(const PtrVarDeclUsageInfo *I) {
+    return I->getKind() >= DUIK_Dereference;
+  }
 
 protected:
   PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr,
@@ -85,6 +93,10 @@ struct PtrVarDerefInit : PtrVarDereference {
         InitedVarDecl(InitVal) {}
 
   const VarDecl *getInitialisedVar() const { return InitedVarDecl; }
+
+  static bool classof(const PtrVarDeclUsageInfo *I) {
+    return I->getKind() == DUIK_VarInit;
+  }
 
 private:
   const VarDecl *InitedVarDecl;
