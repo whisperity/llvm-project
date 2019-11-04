@@ -95,20 +95,20 @@ void test_outofline_init_of_ptrvar_guard(bool b) {
 }
 
 void test_multiple_declref() {
-  T *t6 = create<T>();
-  T *t5next = t6->tp;
-  free(t6);
-  // NO-WARN: t6 used multiple times.
+  T *t7 = create<T>();
+  T *t7next = t7->tp;
+  free(t7);
+  // NO-WARN: t7 used multiple times.
 }
 
 #if 0
 void test_checked_deref() {
-  T *t5 = create<T>();
-  if (!t5)
+  T *t8 = create<T>();
+  if (!t8)
     return;
-  free(t5);
-  // NCHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't5' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-5]]:6: note: 't5' defined here
+  free(t8);
+  // NCHECK-MESSAGES: :[[@LINE-??]]:??: warning: local pointer variable 't8' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // NCHECK-MESSAGES: :[[@LINE-??]]:??: note: 't8' defined here
 }
 #endif
 
