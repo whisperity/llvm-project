@@ -22,30 +22,36 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-namespace {
-
-const char InitedVarId[] = "inited-var";
-const char UsedPtrId[] = "used-ptr";
-const char DereferencedPtrIdInInit[] = "derefed-ptr";
-const char MemberExprId[] = "mem-expr";
+static const char InitedVarId[] = "inited-var";
+static const char UsedPtrId[] = "used-ptr";
+static const char DereferencedPtrId[] = "deref-ptr";
+static const char DereferencedPtrIdInInit[] = "deref-init";
+static const char MemberExprId[] = "mem-expr";
+static const char DerefUsageExprId[] = "usage-stmt";
 
 /// Matches pointer-type variables that are local to the function.
 // TODO: Later on this check could be broadened to work with references, too.
-const auto PointerLocalVarDecl =
+static const auto PointerLocalVarDecl =
     varDecl(anyOf(hasType(pointerType()),
                   hasType(autoType(hasDeducedType(pointerType())))),
             unless(parmVarDecl()));
 
 /// Matches every usage of a local pointer variable.
-const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl)).bind(UsedPtrId);
+static const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl));
+
+static const StatementMatcher PtrDereference = anyOf(
+    memberExpr(isArrow(), hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
+        .bind(DerefUsageExprId),
+    unaryOperator(hasOperatorName("*"),
+                  hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
+        .bind(DerefUsageExprId));
 
 /// Matches variables that are initialised by dereferencing a local ptr.
-const auto VarInitFromPtrDereference =
-    varDecl(hasInitializer(ignoringParenImpCasts(
-                memberExpr(isArrow(),
-                           hasDescendant(declRefExpr(to(PointerLocalVarDecl))
-                                             .bind(DereferencedPtrIdInInit)))
-                    .bind(MemberExprId))))
+static const auto VarInitFromPtrDereference =
+    varDecl(
+        hasInitializer(ignoringParenImpCasts(
+            memberExpr(hasDescendant(PtrVarUsage.bind(DereferencedPtrIdInInit)))
+                .bind(MemberExprId))))
         .bind(InitedVarId);
 
 // ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
@@ -54,11 +60,10 @@ const auto VarInitFromPtrDereference =
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
 
-} // namespace
-
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
+  Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);
+  Finder->addMatcher(PtrDereference, this);
   Finder->addMatcher(VarInitFromPtrDereference, this);
-  Finder->addMatcher(PtrVarUsage, this);
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
@@ -70,6 +75,15 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 
     References[RefPtrVar].addUsage(
         new PtrVarDerefInit{RefExpr, MemExpr, VarInit});
+    return;
+  }
+
+  if (const auto *PtrDRE =
+          Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId)) {
+    const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
+    const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
+
+    References[RefPtrVar].addUsage(new PtrVarDereference{PtrDRE, DerefExpr});
     return;
   }
 
@@ -95,7 +109,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
             llvm::dbgs() << '\n';
           }
           if (const auto *DerefUsage = dyn_cast<PtrVarDereference>(Usage)) {
-            llvm::dbgs() << "This usage is a dereference. The dereference "
+            llvm::dbgs() << "A usage in a dereference. The dereference "
                             "expression looks like this:\n";
             if (const auto *UnaryOpExpr = DerefUsage->getUnaryOperator())
               UnaryOpExpr->dump(llvm::dbgs());

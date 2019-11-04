@@ -10,6 +10,9 @@ template <typename T>
 T *create();
 
 template <typename T>
+void recreate(T **ptr);
+
+template <typename T>
 void something(T &t);
 
 void free(void *p);
@@ -17,12 +20,15 @@ void free(void *p);
 void test() {
   T *t = create<T>();
   free(t);
+  recreate(&t);
   something(*t);
 
   (void)t->tp;
 
   T *tp = t->tp;
-  free(t->tp);
+  T *tp2 = (*tp).tp;
+  free(tp2);
+  free(tp);
 }
 
 #if 0
