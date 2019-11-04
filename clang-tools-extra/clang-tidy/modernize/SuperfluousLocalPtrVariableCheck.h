@@ -128,6 +128,8 @@ public:
   /// \note Ownership of UsageInfo is transferred to the collection!
   bool addUsage(PtrVarDeclUsageInfo *UsageInfo);
 
+  // FIXME: Do we need all these data structure manipulators after all?
+
   /// Adds the given new usage info into the list of usages collected in place
   /// of the old info. If a replacement can take place, the instance pointed to
   /// by OldInfo is destroyed in the process. Otherwise, OldInfo stays valid
@@ -142,8 +144,12 @@ public:
 
   const UseVector &getUsages() const { return CollectedUses; }
 
+  PtrVarDeclUsageInfo *getNthUsage(std::size_t N) const {
+    return CollectedUses[N - 1];
+  }
+
   template <PtrVarDeclUsageInfo::DUIKind Kind>
-  PtrVarDeclUsageInfo *getNthUsageOfKind(size_t N) const;
+  PtrVarDeclUsageInfo *getNthUsageOfKind(std::size_t N) const;
 
   void ignoreUsageRef(const DeclRefExpr *DRE) { IgnoredUses.insert(DRE); }
   bool isIgnored(const DeclRefExpr *DRE) { return IgnoredUses.count(DRE); }

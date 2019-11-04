@@ -17,6 +17,9 @@ void something(T &t);
 
 void free(void *p);
 
+int incr(const int i);
+
+/*
 void test() {
   T *t = create<T>();
   free(t);
@@ -32,8 +35,8 @@ void test() {
   free(tp2);
   free(tp);
 }
+*/
 
-#if 0
 void test_local_variable() {
   T *t = create<T>();
   // NO-WARN: Compiler, IDE warning exists for unused variables.
@@ -62,28 +65,50 @@ void test_single_access_auto_type() {
   // CHECK-MESSAGES: :[[@LINE-3]]:8: note: 'instance' defined here
 }
 
-void test_multiple_declref() {
-  T *t3 = create<T>(); // "allocates"
-  T *t3next = t3->tp;
+void test_single_nonderef_declref() {
+  T *t3 = create<T>();
   free(t3);
-  // NO-WARN: t3 passed to function call, this snippet could not be refactored.
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: local pointer variable 't3' only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't3' defined here
 }
 
-int test_initialise_nonmember_deref() {
-  T *t4 = create<T>();
-  T t_inst = *t4; // dereference, but not member access.
-  // FIXME: Report the dereference?
-  return t_inst.i;
+void test_outofline_init_of_ptrvar() {
+  T *t4;
+  t4 = create<T>();
+  free(t4);
 }
 
-int test_noninitalising_deref() {
+void test_outofline_init_of_ptrvar_unused() {
+  // FIXME: This case really, really feels like a stupid false positive...
+  T *t5;
+  t5 = create<T>();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't5' only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't5' defined here
+}
+
+void test_outofline_init_of_ptrvar_guard(bool b) {
+  T *t6;
+  if (b)
+    t6 = create<T>();
+  free(t6);
+  // NO-WARN: "t6 =" constitutes a use and as such, the potential rewrites don't apply.
+}
+
+void test_multiple_declref() {
+  T *t6 = create<T>();
+  T *t5next = t6->tp;
+  free(t6);
+  // NO-WARN: t6 used multiple times.
+}
+
+#if 0
+void test_checked_deref() {
   T *t5 = create<T>();
-  int i;
-  i = 0;
-  i = i + t5->i;
-  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't5' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't5' defined here
-  return i;
+  if (!t5)
+    return;
+  free(t5);
+  // NCHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't5' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // NCHECK-MESSAGES: :[[@LINE-5]]:6: note: 't5' defined here
 }
 #endif
 

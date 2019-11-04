@@ -122,26 +122,29 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           llvm::dbgs()
               << "\n----------------------------------------------------\n";
         });
-  }
 
-#if 0
-  for (const auto &RefPair : References) {
-    const DeclRefExpr *Usage = RefPair.second.getUsage();
-    if (!Usage)
+    const PtrVarDeclUsageCollection &Usages = RefData.second;
+    if (Usages.hasMultipleUsages()) {
+      LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
+                 llvm::dbgs() << "\n has multiple usages -- ignoring!\n";);
       continue;
+    }
 
-    const VarDecl *Variable = RefPair.first;
+    const PtrVarDeclUsageInfo *UI = Usages.getNthUsage(1);
+    const auto *UseExpr = UI->getUsageExpr();
+    const auto *UsedDecl = UseExpr->getDecl();
+    if (const auto *DerefUI = dyn_cast<PtrVarDereference>(UI)) {
+      diag(UseExpr->getLocation(),
+           "local pointer variable %0 only participates in one dereference")
+          << UsedDecl;
+    } else if (const auto *UsageUI = dyn_cast<PtrVarParamPassing>(UI))
+      diag(UseExpr->getLocation(), "local pointer variable %0 only used once")
+          << UsedDecl;
 
-    diag(Usage->getLocation(),
-         "local pointer variable %0 only participates in one dereference")
-        << Usage->getDecl();
-    //<< FixItHint::CreateReplacement(
-    //       Usage->getSourceRange(),
-    //       (Twine(Variable->getName()) + "?").str());
-    diag(Variable->getLocation(), "%0 defined here", DiagnosticIDs::Note)
-        << Variable;
+    diag(UI->getUsageExpr()->getDecl()->getLocation(), "%0 defined here",
+         DiagnosticIDs::Note)
+        << UI->getUsageExpr()->getDecl();
   }
-#endif
 }
 
 bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
@@ -210,7 +213,7 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
 
 template <PtrVarDeclUsageInfo::DUIKind Kind>
 PtrVarDeclUsageInfo *
-PtrVarDeclUsageCollection::getNthUsageOfKind(size_t N) const {
+PtrVarDeclUsageCollection::getNthUsageOfKind(std::size_t N) const {
   size_t Counter = 0;
   for (PtrVarDeclUsageInfo *DUI : CollectedUses) {
     if (DUI->getKind() == Kind) {
