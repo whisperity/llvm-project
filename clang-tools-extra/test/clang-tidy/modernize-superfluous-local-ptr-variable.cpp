@@ -4,6 +4,8 @@ class T {
 public:
   int i;
   T *tp;
+
+  void f();
 };
 
 template <typename T>
@@ -101,7 +103,6 @@ void test_multiple_declref() {
   // NO-WARN: t7 used multiple times.
 }
 
-#if 0
 void test_checked_deref() {
   T *t8 = create<T>();
   if (!t8)
@@ -110,7 +111,13 @@ void test_checked_deref() {
   // NCHECK-MESSAGES: :[[@LINE-??]]:??: warning: local pointer variable 't8' only participates in one dereference [modernize-superfluous-local-ptr-variable]
   // NCHECK-MESSAGES: :[[@LINE-??]]:??: note: 't8' defined here
 }
-#endif
+
+void test_memfn_call() {
+  T *t9 = create<T>();
+  t9->f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't9' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't9' defined here
+}
 
 /*void F()
 {

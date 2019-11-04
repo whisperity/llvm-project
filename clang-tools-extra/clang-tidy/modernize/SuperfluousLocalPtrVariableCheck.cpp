@@ -44,7 +44,6 @@ static const StatementMatcher PtrDereference = anyOf(
                   hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId));
 
-/// Matches variables that are initialised by dereferencing a local ptr.
 static const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(PtrDereference)))
         .bind(InitedVarId);
@@ -133,17 +132,18 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     const PtrVarDeclUsageInfo *UI = Usages.getNthUsage(1);
     const auto *UseExpr = UI->getUsageExpr();
     const auto *UsedDecl = UseExpr->getDecl();
-    if (const auto *DerefUI = dyn_cast<PtrVarDereference>(UI)) {
-      diag(UseExpr->getLocation(),
-           "local pointer variable %0 only participates in one dereference")
-          << UsedDecl;
-    } else if (const auto *UsageUI = dyn_cast<PtrVarParamPassing>(UI))
-      diag(UseExpr->getLocation(), "local pointer variable %0 only used once")
-          << UsedDecl;
+    const char *OutMsg = nullptr;
+    if (isa<PtrVarDereference>(UI))
+      OutMsg = "local pointer variable %0 only participates in one dereference";
+    else if (isa<PtrVarParamPassing>(UI))
+      OutMsg = "local pointer variable %0 only used once";
 
-    diag(UI->getUsageExpr()->getDecl()->getLocation(), "%0 defined here",
-         DiagnosticIDs::Note)
-        << UI->getUsageExpr()->getDecl();
+    assert(OutMsg && "Unhandled 'PtrVarDeclUsageInfo' kind for diag message");
+
+    diag(UseExpr->getLocation(), OutMsg) << UsedDecl;
+
+    diag(UsedDecl->getLocation(), "%0 defined here", DiagnosticIDs::Note)
+        << UsedDecl;
   }
 }
 
