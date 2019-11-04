@@ -25,8 +25,6 @@ namespace modernize {
 static const char InitedVarId[] = "inited-var";
 static const char UsedPtrId[] = "used-ptr";
 static const char DereferencedPtrId[] = "deref-ptr";
-static const char DereferencedPtrIdInInit[] = "deref-init";
-static const char MemberExprId[] = "mem-expr";
 static const char DerefUsageExprId[] = "usage-stmt";
 
 /// Matches pointer-type variables that are local to the function.
@@ -48,10 +46,7 @@ static const StatementMatcher PtrDereference = anyOf(
 
 /// Matches variables that are initialised by dereferencing a local ptr.
 static const auto VarInitFromPtrDereference =
-    varDecl(
-        hasInitializer(ignoringParenImpCasts(
-            memberExpr(hasDescendant(PtrVarUsage.bind(DereferencedPtrIdInInit)))
-                .bind(MemberExprId))))
+    varDecl(hasInitializer(ignoringParenImpCasts(PtrDereference)))
         .bind(InitedVarId);
 
 // ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
@@ -68,13 +63,13 @@ void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
-    const auto *RefExpr =
-        Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrIdInInit);
-    const auto *MemExpr = Result.Nodes.getNodeAs<MemberExpr>(MemberExprId);
-    const auto *RefPtrVar = cast<VarDecl>(RefExpr->getDecl());
+    const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
+    const auto *DRefExpr =
+        Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
+    const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
     References[RefPtrVar].addUsage(
-        new PtrVarDerefInit{RefExpr, MemExpr, VarInit});
+        new PtrVarDerefInit{DRefExpr, DerefExpr, VarInit});
     return;
   }
 
@@ -149,16 +144,24 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 #endif
 }
 
-// FIXME: Add debug prints to these data structure manipulators.
-
 bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
-  if (isIgnored(UsageInfo->getUsageExpr()))
+  LLVM_DEBUG(
+      llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr() << '\n';
+      UsageInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+
+  if (isIgnored(UsageInfo->getUsageExpr())) {
+    LLVM_DEBUG(llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr()
+                            << " but it is on ignore list!\n";);
     return false;
+  }
 
   for (const PtrVarDeclUsageInfo *DUI : CollectedUses)
-    if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr())
+    if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
+      LLVM_DEBUG(llvm::dbgs() << "Adding usage " << DUI->getUsageExpr()
+                              << " but it has already been found!\n";);
       return false;
+    }
 
   CollectedUses.push_back(UsageInfo);
   return true;
@@ -169,15 +172,29 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
   assert(OldInfo && NewInfo && "provide valid UsageInfo instances");
   assert(OldInfo != NewInfo && "replacement of usage info with same instance");
 
-  if (isIgnored(NewInfo->getUsageExpr()))
+  LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
+                          << " with " << NewInfo->getUsageExpr() << '\n';
+             OldInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';
+             NewInfo->getUsageExpr()->dump(llvm::dbgs());
+             llvm::dbgs() << '\n';);
+
+  if (isIgnored(NewInfo->getUsageExpr())) {
+    LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
+                            << " with " << NewInfo->getUsageExpr()
+                            << " but it is on ignore list!\n";);
     return false;
+  }
 
   size_t OldInfoIdx = 0;
   bool OldInfoFound = false;
   for (size_t Idx = 0; Idx < CollectedUses.size(); ++Idx) {
     if (CollectedUses[Idx] == NewInfo ||
-        CollectedUses[Idx]->getUsageExpr() == NewInfo->getUsageExpr())
+        CollectedUses[Idx]->getUsageExpr() == NewInfo->getUsageExpr()) {
+      LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
+                              << " with " << NewInfo->getUsageExpr()
+                              << " but it is already added!\n";);
       return false;
+    }
 
     if (CollectedUses[Idx] == OldInfo) {
       OldInfoFound = true;

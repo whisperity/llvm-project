@@ -56,6 +56,7 @@ struct PtrVarParamPassing : PtrVarDeclUsageInfo {
 
 /// Pointer dereferenced in some context:
 ///     send_bytes(t->numBytes);
+///     read((*t).rbuf);
 ///     dump(*t);
 struct PtrVarDereference : PtrVarDeclUsageInfo {
   PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
@@ -110,6 +111,7 @@ private:
 //        still doesn't warrant 't' to be a thing, one could still just do
 //          U* u = t ? t->u : nullptr;  // t?->u
 //          W* w = t ? t->w : nullptr;  // t?->w
+
 /// Holds information about usages (referencing expressions) of a declaration.
 ///
 /// This data structure is used to store in which context (expression or

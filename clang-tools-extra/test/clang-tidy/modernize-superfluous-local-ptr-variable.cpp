@@ -25,6 +25,8 @@ void test() {
 
   (void)t->tp;
 
+  T &tr = *t;
+
   T *tp = t->tp;
   T *tp2 = (*tp).tp;
   free(tp2);
