@@ -1,5 +1,12 @@
 // RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t
 
+namespace std {
+struct jmp_buf {
+};
+int setjmp(jmp_buf &env);
+void longjmp(jmp_buf env, int status);
+} // namespace std
+
 class T {
 public:
   int i;
@@ -103,7 +110,7 @@ void test_multiple_declref() {
   // NO-WARN: t7 used multiple times.
 }
 
-void test_checked_deref() {
+void test_checked_usage() {
   T *t8 = create<T>();
   if (!t8)
     return;
@@ -135,9 +142,19 @@ void G()
 /* Some if statements: */
 // FIXME: Handle if statements not as usages and parameter passes but in a
 //        special way, registering they denote a null-check.
-/*
- if (t)
+void if_stmts(T *t) {
+  if (t)
     return;
+
+  if (t > reinterpret_cast<T *>(0x7FFFFFFF)) {
+    return;
+  }
+
+  std::jmp_buf JE;
+  setjmp(JE);
+  if (t < reinterpret_cast<T *>(0x99AA99AA)) {
+    longjmp(JE, static_cast<int>(reinterpret_cast<unsigned long long>(t - 0xFFFFFF)));
+  }
 
   if (t == nullptr)
     return;
@@ -162,4 +179,9 @@ void G()
 
   if (t)
     ++t->i;
-*/
+
+  if (t != 0)
+    int i = 0;
+  else
+    int j = 0;
+}

@@ -26,6 +26,8 @@ static const char InitedVarId[] = "inited-var";
 static const char UsedPtrId[] = "used-ptr";
 static const char DereferencedPtrId[] = "deref-ptr";
 static const char DerefUsageExprId[] = "usage-stmt";
+static const char PtrGuardId[] = "ptr-guard";
+static const char EarlyReturnStmtId[] = "early-ret";
 
 /// Matches pointer-type variables that are local to the function.
 // TODO: Later on this check could be broadened to work with references, too.
@@ -48,6 +50,26 @@ static const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(PtrDereference)))
         .bind(InitedVarId);
 
+static const auto EarlyReturnLike =
+    stmt(anyOf(returnStmt(), continueStmt(), breakStmt(), gotoStmt(),
+               cxxThrowExpr(),
+               callExpr(callee(functionDecl(hasName("longjmp"))))))
+        .bind(EarlyReturnStmtId);
+
+/// Matches conditional checks on a pointer variable where the condition results
+/// in breaking control flow, such as early return, continue, or throwing.
+///
+/// Trivial example of findings:
+///     if (P) return;
+///     if (!P) { continue; }
+static const auto PtrGuard =
+    ifStmt(hasCondition(hasDescendant(PtrVarUsage.bind(UsedPtrId))),
+           hasThen(anyOf(EarlyReturnLike,
+                         compoundStmt(statementCountIs(1),
+                                      hasAnySubstatement(EarlyReturnLike)))),
+           unless(hasElse(stmt())))
+        .bind(PtrGuardId);
+
 // ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
 
 // FIXME: Ignore usages in trivial (early-return or early-continue) 'if's.
@@ -58,9 +80,16 @@ void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);
   Finder->addMatcher(PtrDereference, this);
   Finder->addMatcher(VarInitFromPtrDereference, this);
+  Finder->addMatcher(PtrGuard, this);
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
+  if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
+    LLVM_DEBUG(GuardIf->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+
+    return;
+  }
+
   if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
     const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
     const auto *DRefExpr =
