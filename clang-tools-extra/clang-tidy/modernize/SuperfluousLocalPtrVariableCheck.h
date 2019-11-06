@@ -28,7 +28,9 @@ struct PtrVarDeclUsageInfo {
   enum DUIKind {
     DUIK_ParamPassing, //< Represents a "read" of the pointer as an argument.
     DUIK_Dereference,  //< Represents a "read" where the ptr is dereferenced.
-    DUIK_VarInit       //< Represents a dereference used in an initialisation.
+    DUIK_VarInit,      //< Represents a dereference used in an initialisation.
+    DUIK_Guard         //< Represents a "guard" on the pointer's value
+                       //< (most often a null or non-null check).
   };
 
   DUIKind getKind() const { return Kind; }
@@ -66,7 +68,7 @@ struct PtrVarDereference : PtrVarDeclUsageInfo {
   const MemberExpr *getMemberExpr() const { return MemberRef; }
 
   static bool classof(const PtrVarDeclUsageInfo *I) {
-    return I->getKind() >= DUIK_Dereference;
+    return I->getKind() >= DUIK_Dereference && I->getKind() <= DUIK_VarInit;
   }
 
 protected:
@@ -103,6 +105,26 @@ private:
   const VarDecl *InitedVarDecl;
 };
 
+/// Guard with an early control flow redirect (return, continue, ...) on a
+/// pointer variable:
+///     if (p) return;
+struct PtrGuard : PtrVarDeclUsageInfo {
+  PtrGuard(const DeclRefExpr *UsageRef, const IfStmt *Guard, const Stmt *FlowS)
+      : PtrVarDeclUsageInfo(UsageRef, DUIK_Guard), GuardStmt(Guard),
+        FlowStmt(FlowS) {}
+
+  const IfStmt *getGuardStmt() const { return GuardStmt; }
+  const Stmt *getFlowStmt() const { return FlowStmt; }
+
+  static bool classof(const PtrVarDeclUsageInfo *I) {
+    return I->getKind() == DUIK_Guard;
+  }
+
+private:
+  const IfStmt *GuardStmt;
+  const Stmt *FlowStmt;
+};
+
 // FIXME: Perhaps multiple usages should also be tracked?
 //          T* t = ...;
 //          if (!t) return;
@@ -116,6 +138,7 @@ private:
 ///
 /// This data structure is used to store in which context (expression or
 /// declaration) a previous pointer variable declaration is used.
+// FIXME: This needs a refactoring... again!
 class PtrVarDeclUsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrVarDeclUsageInfo *, 4>;
@@ -141,6 +164,7 @@ public:
 
   bool hasUsages() const { return !CollectedUses.empty(); }
   bool hasMultipleUsages() const { return CollectedUses.size() > 1; }
+  unsigned getNumUsagesOfKind(PtrVarDeclUsageInfo::DUIKind Kind) const;
 
   const UseVector &getUsages() const { return CollectedUses; }
 
@@ -148,6 +172,7 @@ public:
     return CollectedUses[N - 1];
   }
 
+  // FIXME: Why is this a template method if param is an enum?
   template <PtrVarDeclUsageInfo::DUIKind Kind>
   PtrVarDeclUsageInfo *getNthUsageOfKind(std::size_t N) const;
 

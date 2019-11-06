@@ -96,6 +96,7 @@ void test_outofline_init_of_ptrvar_unused() {
 }
 
 void test_outofline_init_of_ptrvar_guard(bool b) {
+  // FIXME: This test case might break when only param passing is considered a "use", not a re-init to it.
   T *t6;
   if (b)
     t6 = create<T>();
@@ -110,78 +111,44 @@ void test_multiple_declref() {
   // NO-WARN: t7 used multiple times.
 }
 
-void test_checked_usage() {
-  T *t8 = create<T>();
-  if (!t8)
-    return;
-  free(t8);
-  // NCHECK-MESSAGES: :[[@LINE-??]]:??: warning: local pointer variable 't8' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-??]]:??: note: 't8' defined here
-}
-
 void test_memfn_call() {
+  T *t8 = create<T>();
+  t8->f();
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't8' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't8' defined here
+}
+
+void test_checked_usage() {
   T *t9 = create<T>();
-  t9->f();
-  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't9' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-3]]:6: note: 't9' defined here
+  if (!t9)
+    return;
+  free(t9);
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: local pointer variable 't9' only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't9' defined here
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't9' is guarded by this condition ...
+  // CHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early return
 }
 
-/*void F()
-{
-  T* t = create<T>();
-  auto i = t->i;
-  auto tp = t->tp;
+void test_checked_dereference() {
+  T *t10 = create<T>();
+  if (!t10)
+    return;
+  int i = t10->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't10' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't10' defined here
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't10' is guarded by this condition ...
+  // CHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early return
 }
 
-void G()
-{
-  T* t = create<T>();
-  auto i = t->i;
-}*/
-
-/* Some if statements: */
-// FIXME: Handle if statements not as usages and parameter passes but in a
-//        special way, registering they denote a null-check.
-void if_stmts(T *t) {
-  if (t)
-    return;
-
-  if (t > reinterpret_cast<T *>(0x7FFFFFFF)) {
-    return;
-  }
-
-  std::jmp_buf JE;
-  setjmp(JE);
-  if (t < reinterpret_cast<T *>(0x99AA99AA)) {
-    longjmp(JE, static_cast<int>(reinterpret_cast<unsigned long long>(t - 0xFFFFFF)));
-  }
-
-  if (t == nullptr)
-    return;
-
-  if (t != nullptr)
-    return;
-
-  if (t->i < 0)
-    return;
-
-  if (!t)
-    return;
-
-  for (;;) {
-    if (t)
+void test_check_loop(unsigned max) {
+  for (unsigned i = 0; i < max; ++i) {
+    T *t11 = create<T>();
+    if (!t11)
       continue;
-
-    if (t) {
-      continue;
-    }
+    free(t11);
+    // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: local pointer variable 't11' only used once [modernize-superfluous-local-ptr-variable]
+    // CHECK-MESSAGES: :[[@LINE-5]]:8: note: 't11' defined here
+    // CHECK-MESSAGES: :[[@LINE-5]]:5: note: the value of 't11' is guarded by this condition ...
+    // CHECK-MESSAGES: :[[@LINE-5]]:7: note: ... resulting in an early continue
   }
-
-  if (t)
-    ++t->i;
-
-  if (t != 0)
-    int i = 0;
-  else
-    int j = 0;
 }

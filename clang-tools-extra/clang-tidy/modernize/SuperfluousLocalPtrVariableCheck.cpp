@@ -62,7 +62,7 @@ static const auto EarlyReturnLike =
 /// Trivial example of findings:
 ///     if (P) return;
 ///     if (!P) { continue; }
-static const auto PtrGuard =
+static const auto PtrGuardM =
     ifStmt(hasCondition(hasDescendant(PtrVarUsage.bind(UsedPtrId))),
            hasThen(anyOf(EarlyReturnLike,
                          compoundStmt(statementCountIs(1),
@@ -77,16 +77,21 @@ static const auto PtrGuard =
 //        by dereferencing the first.
 
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
+  // FIXME: Match pointers with UsedPtrId iff they are passed as an argument!
   Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);
   Finder->addMatcher(PtrDereference, this);
   Finder->addMatcher(VarInitFromPtrDereference, this);
-  Finder->addMatcher(PtrGuard, this);
+  Finder->addMatcher(PtrGuardM, this);
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
     LLVM_DEBUG(GuardIf->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+    const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
+    const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
+    const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
+    References[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
     return;
   }
 
@@ -121,6 +126,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
   for (const auto &RefData : References) {
     LLVM_DEBUG(
         llvm::dbgs() << "Usages for ptr var " << RefData.first << '\n';
+
         RefData.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';
 
         for (const PtrVarDeclUsageInfo *Usage
@@ -128,12 +134,14 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           if (const auto *PassUsage = dyn_cast<PtrVarParamPassing>(Usage)) {
             llvm::dbgs() << "Parameter was passed (\"read\") in the following "
                             "expression:\n";
+
             PassUsage->getUsageExpr()->dump(llvm::dbgs());
             llvm::dbgs() << '\n';
           }
           if (const auto *DerefUsage = dyn_cast<PtrVarDereference>(Usage)) {
             llvm::dbgs() << "A usage in a dereference. The dereference "
                             "expression looks like this:\n";
+
             if (const auto *UnaryOpExpr = DerefUsage->getUnaryOperator())
               UnaryOpExpr->dump(llvm::dbgs());
             else if (const auto *MemExpr = DerefUsage->getMemberExpr())
@@ -142,8 +150,17 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           }
           if (const auto *VarInitUsage = dyn_cast<PtrVarDerefInit>(Usage)) {
             llvm::dbgs() << "This dereference initialises another variable!\n";
-            VarInitUsage->getInitialisedVar()->dump(llvm::dbgs());
 
+            VarInitUsage->getInitialisedVar()->dump(llvm::dbgs());
+            llvm::dbgs() << '\n';
+          }
+          if (const auto *Guard = dyn_cast<PtrGuard>(Usage)) {
+            llvm::dbgs() << "This usage forms a guard check on ptr value!\n";
+            Guard->getGuardStmt()->dump(llvm::dbgs());
+            llvm::dbgs() << '\n';
+
+            llvm::dbgs() << "The control flow is changed by:\n";
+            Guard->getFlowStmt()->dump(llvm::dbgs());
             llvm::dbgs() << '\n';
           }
 
@@ -152,13 +169,25 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
         });
 
     const PtrVarDeclUsageCollection &Usages = RefData.second;
-    if (Usages.hasMultipleUsages()) {
+
+    const unsigned NonAnnotateUses =
+        Usages.getUsages().size() -
+        Usages.getNumUsagesOfKind(PtrVarDeclUsageInfo::DUIK_Guard);
+    if (NonAnnotateUses > 1) {
       LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
-                 llvm::dbgs() << "\n has multiple usages -- ignoring!\n";);
+                 llvm::dbgs()
+                 << "\n has multiple (non-annotation) usages -- ignoring!\n";);
       continue;
     }
 
-    const PtrVarDeclUsageInfo *UI = Usages.getNthUsage(1);
+    const PtrVarDeclUsageInfo *UI;
+    for (const PtrVarDeclUsageInfo *E : Usages.getUsages()) {
+      if (E->getKind() != PtrVarDeclUsageInfo::DUIK_Guard) {
+        UI = E;
+        break;
+      }
+    }
+
     const auto *UseExpr = UI->getUsageExpr();
     const auto *UsedDecl = UseExpr->getDecl();
     const char *OutMsg = nullptr;
@@ -173,6 +202,40 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 
     diag(UsedDecl->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << UsedDecl;
+
+    const PtrGuard *Guard = dyn_cast_or_null<PtrGuard>(
+        Usages.getNthUsageOfKind<PtrVarDeclUsageInfo::DUIK_Guard>(1));
+    if (!Guard)
+      continue;
+
+    diag(Guard->getGuardStmt()->getIfLoc(),
+         "the value of %0 is guarded by this condition ...",
+         DiagnosticIDs::Note)
+        << UsedDecl;
+
+    std::string EarlyFlowType;
+    const Stmt *FlowStmt = Guard->getFlowStmt();
+    if (isa<ReturnStmt>(FlowStmt))
+      EarlyFlowType = "return";
+    else if (isa<ContinueStmt>(FlowStmt))
+      EarlyFlowType = "continue";
+    else if (isa<BreakStmt>(FlowStmt))
+      EarlyFlowType = "break";
+    else if (isa<GotoStmt>(FlowStmt))
+      EarlyFlowType = "goto";
+    else if (isa<CXXThrowExpr>(FlowStmt))
+      EarlyFlowType = "throw";
+    else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
+      const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+      assert(Callee && "Flow matcher of call didn't match a function call?");
+      assert(Callee->getName() == "longjmp" && "Flow matched improperly!");
+      EarlyFlowType = "longjmp";
+    } else
+      llvm_unreachable("Unhandled kind of Early Flow Stmt in diag!");
+
+    diag(Guard->getFlowStmt()->getBeginLoc(), "... resulting in an early %0",
+         DiagnosticIDs::Note)
+        << EarlyFlowType;
   }
 }
 
@@ -238,6 +301,13 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
   CollectedUses[OldInfoIdx] = NewInfo;
   delete OldInfo;
   return true;
+}
+
+unsigned PtrVarDeclUsageCollection::getNumUsagesOfKind(
+    PtrVarDeclUsageInfo::DUIKind Kind) const {
+  return llvm::count_if(CollectedUses, [&Kind](const PtrVarDeclUsageInfo *DUI) {
+    return DUI->getKind() == Kind;
+  });
 }
 
 template <PtrVarDeclUsageInfo::DUIKind Kind>
