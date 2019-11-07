@@ -24,29 +24,52 @@ namespace modernize {
 /// purpose of this check and its diagnostics.
 struct PtrUsage {
   enum PUKind {
+    /* Pointee usages. */
     Ptr_Argument,    //< Represents a "read" of the pointer as an argument.
     Ptr_Dereference, //< Represents a "read" where the ptr is dereferenced.
     Ptr_Deref_Init,  //< Represents a dereference used in an initialisation.
-    Ptr_Guard        //< Represents a "guard" on the pointer's value
-                     //< (most often a null or non-null check).
-  };
 
+    /* Pointer usages. */
+    Ptr_Guard //< Represents a "guard" on the pointer's value
+              //< (most often a null or non-null check).
+  };
+  enum AnnotationKind {
+    Pointee, //< Represents a "direct use" of the pointee object, an access.
+    Pointer  //< Represents uses of a pointer variable that are not direct,
+    //< but only concern the pointer itself.
+  };
   PUKind getKind() const { return Kind; }
+  AnnotationKind getAnnotationKind() const { return AnnotKind; }
+
   const DeclRefExpr *getUsageExpr() const { return RefExpr; }
 
 protected:
-  PtrUsage(const DeclRefExpr *UsageRef, PUKind K)
-      : Kind(K), RefExpr(UsageRef) {}
+  PtrUsage(const DeclRefExpr *UsageRef, PUKind K, AnnotationKind AK)
+      : Kind(K), AnnotKind(AK), RefExpr(UsageRef) {}
 
 private:
   const PUKind Kind;
+  const AnnotationKind AnnotKind;
   const DeclRefExpr *RefExpr;
+};
+
+/// Tag type and intermittent base class representing direct pointer variable
+/// usages which indicate a potential access on the pointee.
+struct PointeePtrUsage : PtrUsage {
+  static bool classof(const PtrUsage *I) {
+    return I->getAnnotationKind() == Pointee;
+  }
+
+protected:
+  PointeePtrUsage(const DeclRefExpr *UsageRef, PUKind K)
+      : PtrUsage(UsageRef, K, Pointee) {}
 };
 
 /// Pointer variable passed as argument:
 ///     free(p)
-struct PtrArgument : PtrUsage {
-  PtrArgument(const DeclRefExpr *Usage) : PtrUsage(Usage, Ptr_Argument) {}
+struct PtrArgument : PointeePtrUsage {
+  PtrArgument(const DeclRefExpr *Usage)
+      : PointeePtrUsage(Usage, Ptr_Argument) {}
 
   static bool classof(const PtrUsage *I) {
     return I->getKind() == Ptr_Argument;
@@ -57,7 +80,7 @@ struct PtrArgument : PtrUsage {
 ///     send_bytes(t->numBytes);
 ///     read((*t).rbuf);
 ///     dump(*t);
-struct PtrDereference : PtrUsage {
+struct PtrDereference : PointeePtrUsage {
   PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
       : PtrDereference(UsageRef, UsageExpr, Ptr_Dereference) {}
 
@@ -70,7 +93,7 @@ struct PtrDereference : PtrUsage {
 
 protected:
   PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr, PUKind K)
-      : PtrUsage(UsageRef, K) {
+      : PointeePtrUsage(UsageRef, K) {
     MemberRef = dyn_cast<MemberExpr>(UsageExpr);
     UnaryDeref = dyn_cast<UnaryOperator>(UsageExpr);
 
@@ -85,8 +108,8 @@ private:
 /// Pointer dereferenced in a context which initialises a variable:
 ///     int i = t->someIntVal;
 ///     auto *next = node->next;
-struct PtrVarDerefInit : PtrDereference {
-  PtrVarDerefInit(const DeclRefExpr *UsageRef, const Expr *DerefExpr,
+struct PtrDerefVarInit : PtrDereference {
+  PtrDerefVarInit(const DeclRefExpr *UsageRef, const Expr *DerefExpr,
                   const VarDecl *InitVal)
       : PtrDereference(UsageRef, DerefExpr, Ptr_Deref_Init),
         InitedVarDecl(InitVal) {}
@@ -101,12 +124,25 @@ private:
   const VarDecl *InitedVarDecl;
 };
 
+/// Tag type and intermittent base class representing usages of a pointer
+/// variable that do not concern the pointee but only the pointer itself.
+struct PointerPtrUsage : PtrUsage {
+  static bool classof(const PtrUsage *I) {
+    return I->getAnnotationKind() == Pointer;
+  }
+
+protected:
+  PointerPtrUsage(const DeclRefExpr *UsageRef, PUKind K)
+      : PtrUsage(UsageRef, K, Pointer) {}
+};
+
 /// Guard with an early control flow redirect (return, continue, ...) on a
 /// pointer variable:
 ///     if (p) return;
-struct PtrGuard : PtrUsage {
+struct PtrGuard : PointerPtrUsage {
   PtrGuard(const DeclRefExpr *UsageRef, const IfStmt *Guard, const Stmt *FlowS)
-      : PtrUsage(UsageRef, Ptr_Guard), GuardStmt(Guard), FlowStmt(FlowS) {}
+      : PointerPtrUsage(UsageRef, Ptr_Guard), GuardStmt(Guard),
+        FlowStmt(FlowS) {}
 
   const IfStmt *getGuardStmt() const { return GuardStmt; }
   const Stmt *getFlowStmt() const { return FlowStmt; }
@@ -157,7 +193,7 @@ public:
 
   /// Get all usages in order which are of the given usage type (isa<T>). This
   /// is a filtering operation, which can be costly!
-  template <typename PtrUsageType> UseVector getUsages() const;
+  template <typename PtrUsageTypes> UseVector getUsages() const;
 
 private:
   UseVector CollectedUses;

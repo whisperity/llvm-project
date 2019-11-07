@@ -101,7 +101,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
     const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
     Usages[RefPtrVar].addUsage(
-        new PtrVarDerefInit{DRefExpr, DerefExpr, VarInit});
+        new PtrDerefVarInit{DRefExpr, DerefExpr, VarInit});
     return;
   }
 
@@ -147,7 +147,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
               MemExpr->dump(llvm::dbgs());
             llvm::dbgs() << '\n';
           }
-          if (const auto *VarInitUsage = dyn_cast<PtrVarDerefInit>(Usage)) {
+          if (const auto *VarInitUsage = dyn_cast<PtrDerefVarInit>(Usage)) {
             llvm::dbgs() << "This dereference initialises another variable!\n";
 
             VarInitUsage->getInitialisedVar()->dump(llvm::dbgs());
@@ -168,25 +168,19 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
         });
 
     const UsageCollection &UsageColl = RefData.second;
+    const UsageCollection::UseVector &PointeeUsages =
+        UsageColl.getUsages<PointeePtrUsage>();
+    const UsageCollection::UseVector &PointerUsages =
+        UsageColl.getUsages<PointerPtrUsage>();
 
-    const unsigned NonAnnotateUses =
-        UsageColl.getUsages().size() -
-        0; // UsageColl.getNumUsagesOfKind(PtrUsage::Ptr_Guard);
-    if (NonAnnotateUses > 1) {
+    if (PointeeUsages.size() > 1) {
       LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
                  llvm::dbgs()
                  << "\n has multiple (non-annotation) usages -- ignoring!\n";);
       continue;
     }
 
-    const PtrUsage *UI;
-    for (const PtrUsage *E : UsageColl.getUsages()) {
-      if (E->getKind() != PtrUsage::Ptr_Guard) {
-        UI = E;
-        break;
-      }
-    }
-
+    const PtrUsage *UI = PointeeUsages.front();
     const auto *UseExpr = UI->getUsageExpr();
     const auto *UsedDecl = UseExpr->getDecl();
     const char *OutMsg = nullptr;
@@ -202,43 +196,39 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     diag(UsedDecl->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << UsedDecl;
 
-    const auto &A = UsageColl.getUsages();
-    const auto &B = UsageColl.getUsages<PtrGuard>();
-    assert(A.size() >= B.size() && "fuck.");
+    for (const PtrUsage *AnnotUI : PointerUsages) {
+      if (const auto *Guard = dyn_cast<PtrGuard>(AnnotUI)) {
+        diag(Guard->getGuardStmt()->getIfLoc(),
+             "the value of %0 is guarded by this condition ...",
+             DiagnosticIDs::Note)
+            << UsedDecl;
 
-    /*const PtrGuard *Guard = dyn_cast_or_null<PtrGuard>(
-        UsageColl.getNthUsageOfKind<PtrUsage::Ptr_Guard>(1));
-    if (!Guard)
-      continue;
+        std::string EarlyFlowType;
+        const Stmt *FlowStmt = Guard->getFlowStmt();
+        if (isa<ReturnStmt>(FlowStmt))
+          EarlyFlowType = "return";
+        else if (isa<ContinueStmt>(FlowStmt))
+          EarlyFlowType = "continue";
+        else if (isa<BreakStmt>(FlowStmt))
+          EarlyFlowType = "break";
+        else if (isa<GotoStmt>(FlowStmt))
+          EarlyFlowType = "goto";
+        else if (isa<CXXThrowExpr>(FlowStmt))
+          EarlyFlowType = "throw";
+        else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
+          const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+          assert(Callee &&
+                 "Flow matcher of call didn't match a function call?");
+          assert(Callee->getName() == "longjmp" && "Flow matched improperly!");
+          EarlyFlowType = "longjmp";
+        } else
+          llvm_unreachable("Unhandled kind of Early Flow Stmt in diag!");
 
-    diag(Guard->getGuardStmt()->getIfLoc(),
-         "the value of %0 is guarded by this condition ...",
-         DiagnosticIDs::Note)
-        << UsedDecl;
-
-    std::string EarlyFlowType;
-    const Stmt *FlowStmt = Guard->getFlowStmt();
-    if (isa<ReturnStmt>(FlowStmt))
-      EarlyFlowType = "return";
-    else if (isa<ContinueStmt>(FlowStmt))
-      EarlyFlowType = "continue";
-    else if (isa<BreakStmt>(FlowStmt))
-      EarlyFlowType = "break";
-    else if (isa<GotoStmt>(FlowStmt))
-      EarlyFlowType = "goto";
-    else if (isa<CXXThrowExpr>(FlowStmt))
-      EarlyFlowType = "throw";
-    else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
-      const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
-      assert(Callee && "Flow matcher of call didn't match a function call?");
-      assert(Callee->getName() == "longjmp" && "Flow matched improperly!");
-      EarlyFlowType = "longjmp";
-    } else
-      llvm_unreachable("Unhandled kind of Early Flow Stmt in diag!");
-
-    diag(Guard->getFlowStmt()->getBeginLoc(), "... resulting in an early %0",
-         DiagnosticIDs::Note)
-        << EarlyFlowType;*/
+        diag(Guard->getFlowStmt()->getBeginLoc(),
+             "... resulting in an early %0", DiagnosticIDs::Note)
+            << EarlyFlowType;
+      }
+    }
   }
 }
 
@@ -292,10 +282,10 @@ bool UsageCollection::replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo) {
   return true;
 }
 
-template <typename PtrUsageType>
+template <typename PtrUsageTypes>
 UsageCollection::UseVector UsageCollection::getUsages() const {
   return UseVector{llvm::make_filter_range(
-      CollectedUses, [](PtrUsage *UI) { return isa<PtrUsageType>(UI); })};
+      CollectedUses, [](PtrUsage *UI) { return isa<PtrUsageTypes>(UI); })};
 }
 
 UsageCollection::~UsageCollection() {
