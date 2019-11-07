@@ -19,40 +19,37 @@ namespace clang {
 namespace tidy {
 namespace modernize {
 
-// QUESTION: Should these things be put into a namespace under modernize?
-
 /// Base class of a usage info for pointer variables. This class acts as a
 /// small (few pointers only) hook tieing nodes of an AST together for the
 /// purpose of this check and its diagnostics.
-struct PtrVarDeclUsageInfo {
-  enum DUIKind {
-    DUIK_ParamPassing, //< Represents a "read" of the pointer as an argument.
-    DUIK_Dereference,  //< Represents a "read" where the ptr is dereferenced.
-    DUIK_VarInit,      //< Represents a dereference used in an initialisation.
-    DUIK_Guard         //< Represents a "guard" on the pointer's value
-                       //< (most often a null or non-null check).
+struct PtrUsage {
+  enum PUKind {
+    Ptr_Argument,    //< Represents a "read" of the pointer as an argument.
+    Ptr_Dereference, //< Represents a "read" where the ptr is dereferenced.
+    Ptr_Deref_Init,  //< Represents a dereference used in an initialisation.
+    Ptr_Guard        //< Represents a "guard" on the pointer's value
+                     //< (most often a null or non-null check).
   };
 
-  DUIKind getKind() const { return Kind; }
+  PUKind getKind() const { return Kind; }
   const DeclRefExpr *getUsageExpr() const { return RefExpr; }
 
 protected:
-  PtrVarDeclUsageInfo(const DeclRefExpr *UsageRef, DUIKind K)
+  PtrUsage(const DeclRefExpr *UsageRef, PUKind K)
       : Kind(K), RefExpr(UsageRef) {}
 
 private:
-  const DUIKind Kind;
+  const PUKind Kind;
   const DeclRefExpr *RefExpr;
 };
 
 /// Pointer variable passed as argument:
 ///     free(p)
-struct PtrVarParamPassing : PtrVarDeclUsageInfo {
-  PtrVarParamPassing(const DeclRefExpr *Usage)
-      : PtrVarDeclUsageInfo(Usage, DUIK_ParamPassing) {}
+struct PtrArgument : PtrUsage {
+  PtrArgument(const DeclRefExpr *Usage) : PtrUsage(Usage, Ptr_Argument) {}
 
-  static bool classof(const PtrVarDeclUsageInfo *I) {
-    return I->getKind() == DUIK_ParamPassing;
+  static bool classof(const PtrUsage *I) {
+    return I->getKind() == Ptr_Argument;
   }
 };
 
@@ -60,21 +57,20 @@ struct PtrVarParamPassing : PtrVarDeclUsageInfo {
 ///     send_bytes(t->numBytes);
 ///     read((*t).rbuf);
 ///     dump(*t);
-struct PtrVarDereference : PtrVarDeclUsageInfo {
-  PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
-      : PtrVarDereference(UsageRef, UsageExpr, DUIK_Dereference) {}
+struct PtrDereference : PtrUsage {
+  PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
+      : PtrDereference(UsageRef, UsageExpr, Ptr_Dereference) {}
 
   const UnaryOperator *getUnaryOperator() const { return UnaryDeref; }
   const MemberExpr *getMemberExpr() const { return MemberRef; }
 
-  static bool classof(const PtrVarDeclUsageInfo *I) {
-    return I->getKind() >= DUIK_Dereference && I->getKind() <= DUIK_VarInit;
+  static bool classof(const PtrUsage *I) {
+    return I->getKind() >= Ptr_Dereference && I->getKind() <= Ptr_Deref_Init;
   }
 
 protected:
-  PtrVarDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr,
-                    DUIKind K)
-      : PtrVarDeclUsageInfo(UsageRef, K) {
+  PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr, PUKind K)
+      : PtrUsage(UsageRef, K) {
     MemberRef = dyn_cast<MemberExpr>(UsageExpr);
     UnaryDeref = dyn_cast<UnaryOperator>(UsageExpr);
 
@@ -89,16 +85,16 @@ private:
 /// Pointer dereferenced in a context which initialises a variable:
 ///     int i = t->someIntVal;
 ///     auto *next = node->next;
-struct PtrVarDerefInit : PtrVarDereference {
+struct PtrVarDerefInit : PtrDereference {
   PtrVarDerefInit(const DeclRefExpr *UsageRef, const Expr *DerefExpr,
                   const VarDecl *InitVal)
-      : PtrVarDereference(UsageRef, DerefExpr, DUIK_VarInit),
+      : PtrDereference(UsageRef, DerefExpr, Ptr_Deref_Init),
         InitedVarDecl(InitVal) {}
 
   const VarDecl *getInitialisedVar() const { return InitedVarDecl; }
 
-  static bool classof(const PtrVarDeclUsageInfo *I) {
-    return I->getKind() == DUIK_VarInit;
+  static bool classof(const PtrUsage *I) {
+    return I->getKind() == Ptr_Deref_Init;
   }
 
 private:
@@ -108,31 +104,19 @@ private:
 /// Guard with an early control flow redirect (return, continue, ...) on a
 /// pointer variable:
 ///     if (p) return;
-struct PtrGuard : PtrVarDeclUsageInfo {
+struct PtrGuard : PtrUsage {
   PtrGuard(const DeclRefExpr *UsageRef, const IfStmt *Guard, const Stmt *FlowS)
-      : PtrVarDeclUsageInfo(UsageRef, DUIK_Guard), GuardStmt(Guard),
-        FlowStmt(FlowS) {}
+      : PtrUsage(UsageRef, Ptr_Guard), GuardStmt(Guard), FlowStmt(FlowS) {}
 
   const IfStmt *getGuardStmt() const { return GuardStmt; }
   const Stmt *getFlowStmt() const { return FlowStmt; }
 
-  static bool classof(const PtrVarDeclUsageInfo *I) {
-    return I->getKind() == DUIK_Guard;
-  }
+  static bool classof(const PtrUsage *I) { return I->getKind() == Ptr_Guard; }
 
 private:
   const IfStmt *GuardStmt;
   const Stmt *FlowStmt;
 };
-
-// FIXME: Perhaps multiple usages should also be tracked?
-//          T* t = ...;
-//          if (!t) return;
-//          U* u = t->u;
-//          W* w = t->w;
-//        still doesn't warrant 't' to be a thing, one could still just do
-//          U* u = t ? t->u : nullptr;  // t?->u
-//          W* w = t ? t->w : nullptr;  // t?->w
 
 /// Holds information about usages (referencing expressions) of a declaration.
 ///
@@ -141,7 +125,7 @@ private:
 // FIXME: This needs a refactoring... again!
 class PtrVarDeclUsageCollection {
 public:
-  using UseVector = llvm::SmallVector<PtrVarDeclUsageInfo *, 4>;
+  using UseVector = llvm::SmallVector<PtrUsage *, 4>;
 
   ~PtrVarDeclUsageCollection();
 
@@ -149,7 +133,7 @@ public:
   /// \returns true if an insertion took place, false otherwise (the UsageExpr
   /// in UsageInfo is ignored, or this UsageInfo is already added).
   /// \note Ownership of UsageInfo is transferred to the collection!
-  bool addUsage(PtrVarDeclUsageInfo *UsageInfo);
+  bool addUsage(PtrUsage *UsageInfo);
 
   // FIXME: Do we need all these data structure manipulators after all?
 
@@ -160,21 +144,19 @@ public:
   /// \returns true if a replace took place, false otherwise (the UsageExpr
   /// in NewInfo is ignored or NewInfo is already added).
   /// \note Ownership of NewInfo is transferred to the collection!
-  bool replaceUsage(PtrVarDeclUsageInfo *OldInfo, PtrVarDeclUsageInfo *NewInfo);
+  bool replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo);
 
   bool hasUsages() const { return !CollectedUses.empty(); }
   bool hasMultipleUsages() const { return CollectedUses.size() > 1; }
-  unsigned getNumUsagesOfKind(PtrVarDeclUsageInfo::DUIKind Kind) const;
+  unsigned getNumUsagesOfKind(PtrUsage::PUKind Kind) const;
 
   const UseVector &getUsages() const { return CollectedUses; }
 
-  PtrVarDeclUsageInfo *getNthUsage(std::size_t N) const {
-    return CollectedUses[N - 1];
-  }
+  PtrUsage *getNthUsage(std::size_t N) const { return CollectedUses[N - 1]; }
 
   // FIXME: Why is this a template method if param is an enum?
-  template <PtrVarDeclUsageInfo::DUIKind Kind>
-  PtrVarDeclUsageInfo *getNthUsageOfKind(std::size_t N) const;
+  template <PtrUsage::PUKind Kind>
+  PtrUsage *getNthUsageOfKind(std::size_t N) const;
 
   void ignoreUsageRef(const DeclRefExpr *DRE) { IgnoredUses.insert(DRE); }
   bool isIgnored(const DeclRefExpr *DRE) { return IgnoredUses.count(DRE); }
@@ -184,8 +166,7 @@ private:
   llvm::SmallPtrSet<const DeclRefExpr *, 4> IgnoredUses;
 };
 
-using ReferencingMap =
-    llvm::DenseMap<const VarDecl *, PtrVarDeclUsageCollection>;
+using UsageMap = llvm::DenseMap<const VarDecl *, PtrVarDeclUsageCollection>;
 
 /// FIXME: Write a short description.
 ///        T* tp = ...;
@@ -205,7 +186,7 @@ public:
   void onEndOfTranslationUnit() override;
 
 private:
-  ReferencingMap References;
+  UsageMap Usages;
 };
 
 } // namespace modernize

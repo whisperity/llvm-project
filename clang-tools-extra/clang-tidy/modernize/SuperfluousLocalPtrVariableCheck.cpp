@@ -39,7 +39,7 @@ static const auto PointerLocalVarDecl =
 /// Matches every usage of a local pointer variable.
 static const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl));
 
-static const StatementMatcher PtrDereference = anyOf(
+static const StatementMatcher PtrDereferenceM = anyOf(
     memberExpr(isArrow(), hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId),
     unaryOperator(hasOperatorName("*"),
@@ -47,7 +47,7 @@ static const StatementMatcher PtrDereference = anyOf(
         .bind(DerefUsageExprId));
 
 static const auto VarInitFromPtrDereference =
-    varDecl(hasInitializer(ignoringParenImpCasts(PtrDereference)))
+    varDecl(hasInitializer(ignoringParenImpCasts(PtrDereferenceM)))
         .bind(InitedVarId);
 
 static const auto EarlyReturnLike =
@@ -79,7 +79,7 @@ static const auto PtrGuardM =
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Match pointers with UsedPtrId iff they are passed as an argument!
   Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);
-  Finder->addMatcher(PtrDereference, this);
+  Finder->addMatcher(PtrDereferenceM, this);
   Finder->addMatcher(VarInitFromPtrDereference, this);
   Finder->addMatcher(PtrGuardM, this);
 }
@@ -91,7 +91,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
     const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
     const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
-    References[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
+    Usages[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
     return;
   }
 
@@ -101,7 +101,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
         Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
     const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
-    References[RefPtrVar].addUsage(
+    Usages[RefPtrVar].addUsage(
         new PtrVarDerefInit{DRefExpr, DerefExpr, VarInit});
     return;
   }
@@ -111,34 +111,34 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
     const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
     const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
 
-    References[RefPtrVar].addUsage(new PtrVarDereference{PtrDRE, DerefExpr});
+    Usages[RefPtrVar].addUsage(new PtrDereference{PtrDRE, DerefExpr});
     return;
   }
 
   if (const auto *PtrDRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
     const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
-    References[RefPtrVar].addUsage(new PtrVarParamPassing{PtrDRE});
+    Usages[RefPtrVar].addUsage(new PtrArgument{PtrDRE});
     return;
   }
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
-  for (const auto &RefData : References) {
+  for (const auto &RefData : Usages) {
     LLVM_DEBUG(
         llvm::dbgs() << "Usages for ptr var " << RefData.first << '\n';
 
         RefData.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';
 
-        for (const PtrVarDeclUsageInfo *Usage
+        for (const PtrUsage *Usage
              : RefData.second.getUsages()) {
-          if (const auto *PassUsage = dyn_cast<PtrVarParamPassing>(Usage)) {
+          if (const auto *PassUsage = dyn_cast<PtrArgument>(Usage)) {
             llvm::dbgs() << "Parameter was passed (\"read\") in the following "
                             "expression:\n";
 
             PassUsage->getUsageExpr()->dump(llvm::dbgs());
             llvm::dbgs() << '\n';
           }
-          if (const auto *DerefUsage = dyn_cast<PtrVarDereference>(Usage)) {
+          if (const auto *DerefUsage = dyn_cast<PtrDereference>(Usage)) {
             llvm::dbgs() << "A usage in a dereference. The dereference "
                             "expression looks like this:\n";
 
@@ -168,11 +168,11 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
               << "\n----------------------------------------------------\n";
         });
 
-    const PtrVarDeclUsageCollection &Usages = RefData.second;
+    const PtrVarDeclUsageCollection &UsageColl = RefData.second;
 
     const unsigned NonAnnotateUses =
-        Usages.getUsages().size() -
-        Usages.getNumUsagesOfKind(PtrVarDeclUsageInfo::DUIK_Guard);
+        UsageColl.getUsages().size() -
+        UsageColl.getNumUsagesOfKind(PtrUsage::Ptr_Guard);
     if (NonAnnotateUses > 1) {
       LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
                  llvm::dbgs()
@@ -180,9 +180,9 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
       continue;
     }
 
-    const PtrVarDeclUsageInfo *UI;
-    for (const PtrVarDeclUsageInfo *E : Usages.getUsages()) {
-      if (E->getKind() != PtrVarDeclUsageInfo::DUIK_Guard) {
+    const PtrUsage *UI;
+    for (const PtrUsage *E : UsageColl.getUsages()) {
+      if (E->getKind() != PtrUsage::Ptr_Guard) {
         UI = E;
         break;
       }
@@ -191,12 +191,12 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     const auto *UseExpr = UI->getUsageExpr();
     const auto *UsedDecl = UseExpr->getDecl();
     const char *OutMsg = nullptr;
-    if (isa<PtrVarDereference>(UI))
+    if (isa<PtrDereference>(UI))
       OutMsg = "local pointer variable %0 only participates in one dereference";
-    else if (isa<PtrVarParamPassing>(UI))
+    else if (isa<PtrArgument>(UI))
       OutMsg = "local pointer variable %0 only used once";
 
-    assert(OutMsg && "Unhandled 'PtrVarDeclUsageInfo' kind for diag message");
+    assert(OutMsg && "Unhandled 'PtrUsage' kind for diag message");
 
     diag(UseExpr->getLocation(), OutMsg) << UsedDecl;
 
@@ -204,7 +204,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
         << UsedDecl;
 
     const PtrGuard *Guard = dyn_cast_or_null<PtrGuard>(
-        Usages.getNthUsageOfKind<PtrVarDeclUsageInfo::DUIK_Guard>(1));
+        UsageColl.getNthUsageOfKind<PtrUsage::Ptr_Guard>(1));
     if (!Guard)
       continue;
 
@@ -239,7 +239,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
   }
 }
 
-bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
+bool PtrVarDeclUsageCollection::addUsage(PtrUsage *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
   LLVM_DEBUG(
       llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr() << '\n';
@@ -251,7 +251,7 @@ bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
     return false;
   }
 
-  for (const PtrVarDeclUsageInfo *DUI : CollectedUses)
+  for (const PtrUsage *DUI : CollectedUses)
     if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
       LLVM_DEBUG(llvm::dbgs() << "Adding usage " << DUI->getUsageExpr()
                               << " but it has already been found!\n";);
@@ -262,8 +262,8 @@ bool PtrVarDeclUsageCollection::addUsage(PtrVarDeclUsageInfo *UsageInfo) {
   return true;
 }
 
-bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
-                                             PtrVarDeclUsageInfo *NewInfo) {
+bool PtrVarDeclUsageCollection::replaceUsage(PtrUsage *OldInfo,
+                                             PtrUsage *NewInfo) {
   assert(OldInfo && NewInfo && "provide valid UsageInfo instances");
   assert(OldInfo != NewInfo && "replacement of usage info with same instance");
 
@@ -303,18 +303,17 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrVarDeclUsageInfo *OldInfo,
   return true;
 }
 
-unsigned PtrVarDeclUsageCollection::getNumUsagesOfKind(
-    PtrVarDeclUsageInfo::DUIKind Kind) const {
-  return llvm::count_if(CollectedUses, [&Kind](const PtrVarDeclUsageInfo *DUI) {
+unsigned
+PtrVarDeclUsageCollection::getNumUsagesOfKind(PtrUsage::PUKind Kind) const {
+  return llvm::count_if(CollectedUses, [&Kind](const PtrUsage *DUI) {
     return DUI->getKind() == Kind;
   });
 }
 
-template <PtrVarDeclUsageInfo::DUIKind Kind>
-PtrVarDeclUsageInfo *
-PtrVarDeclUsageCollection::getNthUsageOfKind(std::size_t N) const {
+template <PtrUsage::PUKind Kind>
+PtrUsage *PtrVarDeclUsageCollection::getNthUsageOfKind(std::size_t N) const {
   size_t Counter = 0;
-  for (PtrVarDeclUsageInfo *DUI : CollectedUses) {
+  for (PtrUsage *DUI : CollectedUses) {
     if (DUI->getKind() == Kind) {
       if (++Counter == N)
         return DUI;
@@ -324,7 +323,7 @@ PtrVarDeclUsageCollection::getNthUsageOfKind(std::size_t N) const {
 }
 
 PtrVarDeclUsageCollection::~PtrVarDeclUsageCollection() {
-  for (PtrVarDeclUsageInfo *DUI : CollectedUses)
+  for (PtrUsage *DUI : CollectedUses)
     delete DUI;
 }
 
