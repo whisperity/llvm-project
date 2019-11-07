@@ -118,20 +118,21 @@ private:
   const Stmt *FlowStmt;
 };
 
-/// Holds information about usages (referencing expressions) of a declaration.
+/// Holds information about usages (expressions that reference) of a
+/// declaration.
 ///
 /// This data structure is used to store in which context (expression or
 /// declaration) a previous pointer variable declaration is used.
 // FIXME: This needs a refactoring... again!
-class PtrVarDeclUsageCollection {
+class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
 
-  ~PtrVarDeclUsageCollection();
+  ~UsageCollection();
 
   /// Adds the given usage info to the list of usages collected by the instance.
-  /// \returns true if an insertion took place, false otherwise (the UsageExpr
-  /// in UsageInfo is ignored, or this UsageInfo is already added).
+  /// \returns true if an insertion took place, false otherwise (UsageInfo is
+  /// already added).
   /// \note Ownership of UsageInfo is transferred to the collection!
   bool addUsage(PtrUsage *UsageInfo);
 
@@ -141,32 +142,28 @@ public:
   /// of the old info. If a replacement can take place, the instance pointed to
   /// by OldInfo is destroyed in the process. Otherwise, OldInfo stays valid
   /// and in the data structure.
-  /// \returns true if a replace took place, false otherwise (the UsageExpr
-  /// in NewInfo is ignored or NewInfo is already added).
+  /// \returns true if a replace took place, false otherwise (NewInfo is
+  /// already added).
   /// \note Ownership of NewInfo is transferred to the collection!
+  // FIXME: Maybe unneeded.
   bool replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo);
 
   bool hasUsages() const { return !CollectedUses.empty(); }
+
+  // FIXME: Maybe unneeded.
   bool hasMultipleUsages() const { return CollectedUses.size() > 1; }
-  unsigned getNumUsagesOfKind(PtrUsage::PUKind Kind) const;
 
   const UseVector &getUsages() const { return CollectedUses; }
 
-  PtrUsage *getNthUsage(std::size_t N) const { return CollectedUses[N - 1]; }
-
-  // FIXME: Why is this a template method if param is an enum?
-  template <PtrUsage::PUKind Kind>
-  PtrUsage *getNthUsageOfKind(std::size_t N) const;
-
-  void ignoreUsageRef(const DeclRefExpr *DRE) { IgnoredUses.insert(DRE); }
-  bool isIgnored(const DeclRefExpr *DRE) { return IgnoredUses.count(DRE); }
+  /// Get all usages in order which are of the given usage type (isa<T>). This
+  /// is a filtering operation, which can be costly!
+  template <typename PtrUsageType> UseVector getUsages() const;
 
 private:
   UseVector CollectedUses;
-  llvm::SmallPtrSet<const DeclRefExpr *, 4> IgnoredUses;
 };
 
-using UsageMap = llvm::DenseMap<const VarDecl *, PtrVarDeclUsageCollection>;
+using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 
 /// FIXME: Write a short description.
 ///        T* tp = ...;

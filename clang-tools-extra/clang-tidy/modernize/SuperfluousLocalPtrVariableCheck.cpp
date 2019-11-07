@@ -50,6 +50,8 @@ static const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(PtrDereferenceM)))
         .bind(InitedVarId);
 
+// FIXME: Match all [[noreturn]] functions, and perhaps also usages in an
+//        assert() call.
 static const auto EarlyReturnLike =
     stmt(anyOf(returnStmt(), continueStmt(), breakStmt(), gotoStmt(),
                cxxThrowExpr(),
@@ -70,9 +72,6 @@ static const auto PtrGuardM =
            unless(hasElse(stmt())))
         .bind(PtrGuardId);
 
-// ifStmt(hasCondition(hasDescendant(declRefExpr(to(varDecl(hasType(pointerType())))).bind("A"))))
-
-// FIXME: Ignore usages in trivial (early-return or early-continue) 'if's.
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
 
@@ -168,11 +167,11 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
               << "\n----------------------------------------------------\n";
         });
 
-    const PtrVarDeclUsageCollection &UsageColl = RefData.second;
+    const UsageCollection &UsageColl = RefData.second;
 
     const unsigned NonAnnotateUses =
         UsageColl.getUsages().size() -
-        UsageColl.getNumUsagesOfKind(PtrUsage::Ptr_Guard);
+        0; // UsageColl.getNumUsagesOfKind(PtrUsage::Ptr_Guard);
     if (NonAnnotateUses > 1) {
       LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
                  llvm::dbgs()
@@ -203,7 +202,11 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     diag(UsedDecl->getLocation(), "%0 defined here", DiagnosticIDs::Note)
         << UsedDecl;
 
-    const PtrGuard *Guard = dyn_cast_or_null<PtrGuard>(
+    const auto &A = UsageColl.getUsages();
+    const auto &B = UsageColl.getUsages<PtrGuard>();
+    assert(A.size() >= B.size() && "fuck.");
+
+    /*const PtrGuard *Guard = dyn_cast_or_null<PtrGuard>(
         UsageColl.getNthUsageOfKind<PtrUsage::Ptr_Guard>(1));
     if (!Guard)
       continue;
@@ -235,21 +238,15 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 
     diag(Guard->getFlowStmt()->getBeginLoc(), "... resulting in an early %0",
          DiagnosticIDs::Note)
-        << EarlyFlowType;
+        << EarlyFlowType;*/
   }
 }
 
-bool PtrVarDeclUsageCollection::addUsage(PtrUsage *UsageInfo) {
+bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
   LLVM_DEBUG(
       llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr() << '\n';
       UsageInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-
-  if (isIgnored(UsageInfo->getUsageExpr())) {
-    LLVM_DEBUG(llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr()
-                            << " but it is on ignore list!\n";);
-    return false;
-  }
 
   for (const PtrUsage *DUI : CollectedUses)
     if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
@@ -262,8 +259,7 @@ bool PtrVarDeclUsageCollection::addUsage(PtrUsage *UsageInfo) {
   return true;
 }
 
-bool PtrVarDeclUsageCollection::replaceUsage(PtrUsage *OldInfo,
-                                             PtrUsage *NewInfo) {
+bool UsageCollection::replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo) {
   assert(OldInfo && NewInfo && "provide valid UsageInfo instances");
   assert(OldInfo != NewInfo && "replacement of usage info with same instance");
 
@@ -272,13 +268,6 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrUsage *OldInfo,
              OldInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';
              NewInfo->getUsageExpr()->dump(llvm::dbgs());
              llvm::dbgs() << '\n';);
-
-  if (isIgnored(NewInfo->getUsageExpr())) {
-    LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
-                            << " with " << NewInfo->getUsageExpr()
-                            << " but it is on ignore list!\n";);
-    return false;
-  }
 
   size_t OldInfoIdx = 0;
   bool OldInfoFound = false;
@@ -303,28 +292,14 @@ bool PtrVarDeclUsageCollection::replaceUsage(PtrUsage *OldInfo,
   return true;
 }
 
-unsigned
-PtrVarDeclUsageCollection::getNumUsagesOfKind(PtrUsage::PUKind Kind) const {
-  return llvm::count_if(CollectedUses, [&Kind](const PtrUsage *DUI) {
-    return DUI->getKind() == Kind;
-  });
+template <typename PtrUsageType>
+UsageCollection::UseVector UsageCollection::getUsages() const {
+  return UseVector{llvm::make_filter_range(
+      CollectedUses, [](PtrUsage *UI) { return isa<PtrUsageType>(UI); })};
 }
 
-template <PtrUsage::PUKind Kind>
-PtrUsage *PtrVarDeclUsageCollection::getNthUsageOfKind(std::size_t N) const {
-  size_t Counter = 0;
-  for (PtrUsage *DUI : CollectedUses) {
-    if (DUI->getKind() == Kind) {
-      if (++Counter == N)
-        return DUI;
-    }
-  }
-  return nullptr;
-}
-
-PtrVarDeclUsageCollection::~PtrVarDeclUsageCollection() {
-  for (PtrUsage *DUI : CollectedUses)
-    delete DUI;
+UsageCollection::~UsageCollection() {
+  llvm::for_each(CollectedUses, [](PtrUsage *UI) { delete UI; });
 }
 
 } // namespace modernize
