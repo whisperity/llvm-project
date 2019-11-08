@@ -153,15 +153,28 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                                            LOpts)),
             PtrVar->getName());
 
-    StringRef PtrVarInitExprCode = Lexer::getSourceText(
-        CharSourceRange::getCharRange(
-            PtrVar->getInit()->getBeginLoc(),
-            Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0, SM,
-                                       LOpts)),
-        SM, LOpts);
+    std::string PtrVarInitExprCode =
+        (Twine('(') +
+         Lexer::getSourceText(
+             CharSourceRange::getCharRange(
+                 PtrVar->getInit()->getBeginLoc(),
+                 Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0,
+                                            SM, LOpts)),
+             SM, LOpts) +
+         Twine(')'))
+            .str();
 
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
       // FIXME: Offer a good note here.
+      diag(TheUseExpr->getLocation(),
+           "usage: %0 dereferenced in the initialisation of %1",
+           DiagnosticIDs::Note)
+          << PtrVar << DerefForVarInit->getInitialisedVar();
+      diag(TheUseExpr->getLocation(),
+           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
+          << PtrVar
+          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
+                                          PtrVarInitExprCode);
     } else if (isa<PtrDereference>(TheUsage)) {
       diag(TheUseExpr->getLocation(), "usage: %0 dereferenced here",
            DiagnosticIDs::Note)

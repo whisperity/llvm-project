@@ -20,6 +20,8 @@ NO_RETURN void longjmp(jmp_buf env, int status);
 
 NO_RETURN void exit(int exit_code);
 
+int rand();
+
 void free(void *p);
 } // namespace std
 
@@ -80,86 +82,89 @@ void single_member_access() {
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't2' here
 }
 
+void ptr_of_auto_dereference() {
+  auto *t3 = create<T>();
+  (void)t3->tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't3' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't3' here
+}
+
 void single_member_multiple_access() {
-  T *t3 = create<T>();
-  (void)(t3->i + t3->i);
+  T *t4 = create<T>();
+  (void)(t4->i + t4->i);
 }
 
 void multiple_member_access() {
-  T *t3 = create<T>();
-  (void)t3->i;
-  (void)t3->tp;
+  T *t4 = create<T>();
+  (void)t4->i;
+  (void)t4->tp;
 }
 
 void passing_the_pointer() {
-  T *t4 = create<T>();
-  std::free(t4);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't4' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't4' used in an expression
-  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't4' here
+  T *t5 = create<T>();
+  std::free(t5);
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't5' used in an expression
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't5' here
 }
 
 void single_member_to_variable() {
-  T *t5 = create<T>();
-  int i = t5->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // FIXME: Offer notes here.
+  T *t6 = create<T>();
+  int i = t6->i;
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't6' dereferenced in the initialisation of 'i'
+  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the initialisation of 't6' here
 }
 
-/*
 void single_member_to_auto_variable_1() {
-  T *t4 = create<T>();
-  auto i = t4->i;
-  // NCHECK-MESSAGES: :[[@LINE-1]]:17: warning: local pointer variable 'instance' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-3]]:8: note: 'instance' defined here
+  T *t7 = create<T>();
+  auto i = t7->i;
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't7' dereferenced in the initialisation of 'i'
+  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the initialisation of 't7' here
 }
-*/
+
+void single_member_to_auto_variable_2() {
+  T *t8 = create<T>();
+  auto n = t8->tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't8' dereferenced in the initialisation of 'n'
+  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the initialisation of 't8' here
+}
+
+void ptrvar_initialised_out_of_line() {
+  T *t9;
+  t9 = create<T>();
+  std::free(t9);
+}
+
+void ptrvar_initialised_out_of_line_conditionally() {
+  T *t9;
+  if (std::rand() > 16384)
+    t9 = create<T>();
+  else
+    t9 = nullptr;
+  std::free(t9);
+}
+
+void complex_init_stmt(bool b) {
+  T *t10 = b ? create<T>() : try_create<T>();
+  std::free(t10);
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't10' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't10' used in an expression
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't10' here
+}
+
+void single_memfn_call() {
+  T *t11 = create<T>();
+  t11->f();
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't11' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the initialisation of 't11' here
+}
 
 /*
-void test_single_nonderef_declref() {
-  T *t3 = create<T>();
-  free(t3);
-  // NCHECK-MESSAGES: :[[@LINE-1]]:8: warning: local pointer variable 't3' only used once [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-3]]:6: note: 't3' defined here
-}
-
-void test_outofline_init_of_ptrvar() {
-  T *t4;
-  t4 = create<T>();
-  free(t4);
-}
-
-void test_outofline_init_of_ptrvar_unused() {
-  // FIXME: This case really, really feels like a stupid false positive...
-  T *t5;
-  t5 = create<T>();
-  // NCHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't5' only used once [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-3]]:6: note: 't5' defined here
-}
-
-void test_outofline_init_of_ptrvar_guard(bool b) {
-  // FIXME: This test case might break when only param passing is considered a "use", not a re-init to it.
-  T *t6;
-  if (b)
-    t6 = create<T>();
-  free(t6);
-  // NO-WARN: "t6 =" constitutes a use and as such, the potential rewrites don't apply.
-}
-
-void test_multiple_declref() {
-  T *t7 = create<T>();
-  T *t7next = t7->tp;
-  free(t7);
-  // NO-WARN: t7 used multiple times.
-}
-
-void test_memfn_call() {
-  T *t8 = create<T>();
-  t8->f();
-  // NCHECK-MESSAGES: :[[@LINE-1]]:3: warning: local pointer variable 't8' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-3]]:6: note: 't8' defined here
-}
-
 void test_checked_usage() {
   T *t9 = create<T>();
   if (!t9)
