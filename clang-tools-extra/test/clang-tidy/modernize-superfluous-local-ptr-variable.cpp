@@ -72,20 +72,20 @@ void unused_local_variable() {
 
 void single_member_access() {
   T *t2 = create<T>();
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: local pointer variable 't2' is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-FIXES: {{^  }};{{$}}
+  // Make sure the FixIt introduced by the check doesn't actually change the code.
+  // CHECK-FIXES: {{^  }}T *t2 = create<T>();{{$}}
   (void)t2->i;
-  // CHECK-MESSAGES: :[[@LINE-1]]:9: note: 't2' dereferenced here
-  // CHECK-FIXES: {{^  }}(void)create<T>()->i;{{$}}
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't2' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't2' here
 }
 
 void single_member_to_variable() {
   T *t3 = create<T>();
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: local pointer variable 't3' is only
-  // CHECK-FIXES: {{^  }};{{$}}
   int i = t3->i;
-  // CHECK-MESSAGES: :[[@LINE-1]]:11: note: 't3' dereferenced here
-  // CHECK-FIXES: {{^  }}int i = create<T>()->i;{{$}}
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't3' might
+  // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't3' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the initialisation of 't3' here
 }
 
 /*

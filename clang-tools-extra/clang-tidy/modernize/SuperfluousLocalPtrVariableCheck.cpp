@@ -141,13 +141,18 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     // const auto *UseExpr = TheUsage->getUsageExpr();
     // const auto *UsedDecl = UseExpr->getDecl();
 
-    auto Diag =
-        diag(PtrVar->getLocation(),
-             "local pointer variable %0 is only used once")
-        << PtrVar
-        << FixItHint::CreateRemoval(CharSourceRange::getCharRange(
-               PtrVar->getBeginLoc(),
-               Lexer::getLocForEndOfToken(PtrVar->getEndLoc(), 0, SM, LOpts)));
+    diag(PtrVar->getLocation(), "local pointer variable %0 might be "
+                                "superfluous as it is only used once")
+        << PtrVar <<
+        // Create a "dummy" FixIt (changing the var's name to itself). This is
+        // done so that later FixIt hints don't get applied if '--fix' is
+        // specified to Tidy.
+        FixItHint::CreateReplacement(
+            CharSourceRange::getCharRange(
+                PtrVar->getLocation(),
+                Lexer::getLocForEndOfToken(PtrVar->getLocation(), 0, SM,
+                                           LOpts)),
+            PtrVar->getName());
 
     if (const auto *DerefUsage = dyn_cast<PtrDereference>(TheUsage)) {
       const DeclRefExpr *DRE = DerefUsage->getUsageExpr();
@@ -159,13 +164,14 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                                          LOpts)),
           SM, LOpts);
 
-      Diag << FixItHint::CreateReplacement(DRE->getSourceRange(), InitCode);
-      Diag.~DiagnosticBuilder();
-
-      diag(DRE->getLocation(), "%0 dereferenced here",
+      diag(DRE->getLocation(), "usage: %0 dereferenced here",
            DiagnosticIDs::Note)
-          << PtrVar; //<< FixItHint::CreateReplacement(DRE->getSourceRange(),
-                     //InitCode);
+          << PtrVar;
+
+      diag(DRE->getLocation(), "consider using the initialisation of %0 here",
+           DiagnosticIDs::Note)
+          << PtrVar
+          << FixItHint::CreateReplacement(DRE->getSourceRange(), InitCode);
     }
 
     /*for (const PtrUsage *AnnotUI : PointerUsages) {
