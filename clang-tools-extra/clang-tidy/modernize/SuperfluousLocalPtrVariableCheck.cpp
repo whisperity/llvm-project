@@ -73,6 +73,9 @@ static const auto PtrGuardM =
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
 
+// FIXME: Introduce a % option for variable pollution (only report if # of
+//        superfluous ptr vars are higher than % of all (or ptr-only?) vars.
+
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Match pointers with UsedPtrId iff they are passed as an argument!
   Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);

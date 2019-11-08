@@ -1,28 +1,15 @@
-// RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t -- -- -std=c++17
-
-// FIXME: Run the test with multiple C++ std versions.
-
-#ifdef __has_cpp_attribute
-#if __has_cpp_attribute(noreturn)
-#define NO_RETURN [[noreturn]]
-#else
-#define NO_RETURN
-#endif
-#else
-#define NO_RETURN
-#endif
+// RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t -- -- -std=c++17-or-later
 
 namespace std {
+int rand();
+void free(void *p);
+
 struct jmp_buf {
 };
 int setjmp(jmp_buf &env);
-NO_RETURN void longjmp(jmp_buf env, int status);
+[[noreturn]] void longjmp(jmp_buf env, int status);
 
-NO_RETURN void exit(int exit_code);
-
-int rand();
-
-void free(void *p);
+[[noreturn]] void exit(int exit_code);
 } // namespace std
 
 class T {
@@ -40,32 +27,6 @@ template <typename T>
 T *create();
 template <typename T>
 T *try_create();
-
-template <typename T>
-void recreate(T **ptr);
-
-template <typename T>
-void something(T &t);
-
-int incr(const int i);
-
-/*
-void test() {
-  T *t = create<T>();
-  free(t);
-  recreate(&t);
-  something(*t);
-
-  (void)t->tp;
-
-  T &tr = *t;
-
-  T *tp = t->tp;
-  T *tp2 = (*tp).tp;
-  free(tp2);
-  free(tp);
-}
-*/
 
 void unused_local_variable() {
   T *t1 = create<T>();
@@ -163,6 +124,47 @@ void single_memfn_call() {
   // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't11' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the initialisation of 't11' here
 }
+
+#if 0
+void single_checked_passing() {
+  T *t12 = try_create<T>();
+  if (!t12)
+    return;
+  std::free(t12);
+
+  // NO-WARN: This example cannot be reasonably rewritten.
+}
+
+void single_checked_dereference() {
+  T *t12 = try_create<T>();
+  if (!t12)
+    return;
+  std::free(t12->tp);
+
+  // NO-WARN: This example cannot be reasonably rewritten.
+}
+
+void single_checked_initialising_dereference() {
+  T *t13 = try_create<T>();
+  if (!t13)
+    return;
+  int i = t13->i;
+  i += 1;
+
+  // FIXME: Suggest the below example in >= C++17 mode.
+}
+
+int SCID_FIX_17() {
+  int i;
+  if (const T *p = try_create<T>(); !(p && ((i = p->i), void().true)))
+    // clang-format off
+                                                     // ^~~~~~~
+                                                     // only suggest if decltype(i) has operator,() !!!
+    // clang-format on
+    return -1;
+  return i + 1;
+}
+#endif
 
 /*
 void test_checked_usage() {
