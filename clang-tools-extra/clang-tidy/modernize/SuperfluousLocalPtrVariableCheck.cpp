@@ -32,7 +32,8 @@ static const char EarlyReturnStmtId[] = "early-ret";
 /// Matches pointer-type variables that are local to the function.
 // TODO: Later on this check could be broadened to work with references, too.
 static const auto PointerLocalVarDecl =
-    varDecl(anyOf(hasType(pointerType()),
+    varDecl(hasInitializer(expr()),
+            anyOf(hasType(pointerType()),
                   hasType(autoType(hasDeducedType(pointerType())))),
             unless(parmVarDecl()));
 
@@ -119,81 +120,55 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
-  for (const auto &RefData : Usages) {
-    LLVM_DEBUG(
-        llvm::dbgs() << "Usages for ptr var " << RefData.first << '\n';
+  const LangOptions &LOpts = getLangOpts();
 
-        RefData.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';
-
-        for (const PtrUsage *Usage
-             : RefData.second.getUsages()) {
-          if (const auto *PassUsage = dyn_cast<PtrArgument>(Usage)) {
-            llvm::dbgs() << "Parameter was passed (\"read\") in the following "
-                            "expression:\n";
-
-            PassUsage->getUsageExpr()->dump(llvm::dbgs());
-            llvm::dbgs() << '\n';
-          }
-          if (const auto *DerefUsage = dyn_cast<PtrDereference>(Usage)) {
-            llvm::dbgs() << "A usage in a dereference. The dereference "
-                            "expression looks like this:\n";
-
-            if (const auto *UnaryOpExpr = DerefUsage->getUnaryOperator())
-              UnaryOpExpr->dump(llvm::dbgs());
-            else if (const auto *MemExpr = DerefUsage->getMemberExpr())
-              MemExpr->dump(llvm::dbgs());
-            llvm::dbgs() << '\n';
-          }
-          if (const auto *VarInitUsage = dyn_cast<PtrDerefVarInit>(Usage)) {
-            llvm::dbgs() << "This dereference initialises another variable!\n";
-
-            VarInitUsage->getInitialisedVar()->dump(llvm::dbgs());
-            llvm::dbgs() << '\n';
-          }
-          if (const auto *Guard = dyn_cast<PtrGuard>(Usage)) {
-            llvm::dbgs() << "This usage forms a guard check on ptr value!\n";
-            Guard->getGuardStmt()->dump(llvm::dbgs());
-            llvm::dbgs() << '\n';
-
-            llvm::dbgs() << "The control flow is changed by:\n";
-            Guard->getFlowStmt()->dump(llvm::dbgs());
-            llvm::dbgs() << '\n';
-          }
-
-          llvm::dbgs()
-              << "\n----------------------------------------------------\n";
-        });
-
-    const UsageCollection &UsageColl = RefData.second;
+  for (const auto &Usage : Usages) {
+    const VarDecl *PtrVar = Usage.first;
     const UsageCollection::UseVector &PointeeUsages =
-        UsageColl.getUsages<PointeePtrUsage>();
+        Usage.second.getUsages<PointeePtrUsage>();
     const UsageCollection::UseVector &PointerUsages =
-        UsageColl.getUsages<PointerPtrUsage>();
+        Usage.second.getUsages<PointerPtrUsage>();
 
     if (PointeeUsages.size() > 1) {
-      LLVM_DEBUG(RefData.first->dump(llvm::dbgs());
+      LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
                  llvm::dbgs()
                  << "\n has multiple (non-annotation) usages -- ignoring!\n";);
       continue;
     }
 
-    const PtrUsage *UI = PointeeUsages.front();
-    const auto *UseExpr = UI->getUsageExpr();
-    const auto *UsedDecl = UseExpr->getDecl();
-    const char *OutMsg = nullptr;
-    if (isa<PtrDereference>(UI))
-      OutMsg = "local pointer variable %0 only participates in one dereference";
-    else if (isa<PtrArgument>(UI))
-      OutMsg = "local pointer variable %0 only used once";
+    const SourceManager &SM = PtrVar->getASTContext().getSourceManager();
+    const PtrUsage *TheUsage = PointeeUsages.front();
+    // const auto *UseExpr = TheUsage->getUsageExpr();
+    // const auto *UsedDecl = UseExpr->getDecl();
 
-    assert(OutMsg && "Unhandled 'PtrUsage' kind for diag message");
+    auto Diag =
+        diag(PtrVar->getLocation(),
+             "local pointer variable %0 is only used once")
+        << PtrVar
+        << FixItHint::CreateRemoval(CharSourceRange::getCharRange(
+               PtrVar->getBeginLoc(),
+               Lexer::getLocForEndOfToken(PtrVar->getEndLoc(), 0, SM, LOpts)));
 
-    diag(UseExpr->getLocation(), OutMsg) << UsedDecl;
+    if (const auto *DerefUsage = dyn_cast<PtrDereference>(TheUsage)) {
+      const DeclRefExpr *DRE = DerefUsage->getUsageExpr();
 
-    diag(UsedDecl->getLocation(), "%0 defined here", DiagnosticIDs::Note)
-        << UsedDecl;
+      StringRef InitCode = Lexer::getSourceText(
+          CharSourceRange::getCharRange(
+              PtrVar->getInit()->getBeginLoc(),
+              Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0, SM,
+                                         LOpts)),
+          SM, LOpts);
 
-    for (const PtrUsage *AnnotUI : PointerUsages) {
+      Diag << FixItHint::CreateReplacement(DRE->getSourceRange(), InitCode);
+      Diag.~DiagnosticBuilder();
+
+      diag(DRE->getLocation(), "%0 dereferenced here",
+           DiagnosticIDs::Note)
+          << PtrVar; //<< FixItHint::CreateReplacement(DRE->getSourceRange(),
+                     //InitCode);
+    }
+
+    /*for (const PtrUsage *AnnotUI : PointerUsages) {
       if (const auto *Guard = dyn_cast<PtrGuard>(AnnotUI)) {
         diag(Guard->getGuardStmt()->getIfLoc(),
              "the value of %0 is guarded by this condition ...",
@@ -224,7 +199,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
              "... resulting in an early %0", DiagnosticIDs::Note)
             << EarlyFlowType;
       }
-    }
+    }*/
   }
 }
 
