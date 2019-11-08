@@ -80,12 +80,30 @@ void single_member_access() {
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't2' here
 }
 
-void single_member_to_variable() {
+void single_member_multiple_access() {
   T *t3 = create<T>();
-  int i = t3->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't3' might
-  // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't3' dereferenced here
-  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the initialisation of 't3' here
+  (void)(t3->i + t3->i);
+}
+
+void multiple_member_access() {
+  T *t3 = create<T>();
+  (void)t3->i;
+  (void)t3->tp;
+}
+
+void passing_the_pointer() {
+  T *t4 = create<T>();
+  std::free(t4);
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't4' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't4' used in an expression
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't4' here
+}
+
+void single_member_to_variable() {
+  T *t5 = create<T>();
+  int i = t5->i;
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // FIXME: Offer notes here.
 }
 
 /*

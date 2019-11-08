@@ -138,15 +138,14 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 
     const SourceManager &SM = PtrVar->getASTContext().getSourceManager();
     const PtrUsage *TheUsage = PointeeUsages.front();
-    // const auto *UseExpr = TheUsage->getUsageExpr();
-    // const auto *UsedDecl = UseExpr->getDecl();
+    const auto *TheUseExpr = TheUsage->getUsageExpr();
 
     diag(PtrVar->getLocation(), "local pointer variable %0 might be "
                                 "superfluous as it is only used once")
         << PtrVar <<
         // Create a "dummy" FixIt (changing the var's name to itself). This is
-        // done so that later FixIt hints don't get applied if '--fix' is
-        // specified to Tidy.
+        // done so that later FixIt hints (offered as suggestions) do NOT get
+        // applied if '--fix' is specified to Tidy.
         FixItHint::CreateReplacement(
             CharSourceRange::getCharRange(
                 PtrVar->getLocation(),
@@ -154,24 +153,33 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                                            LOpts)),
             PtrVar->getName());
 
-    if (const auto *DerefUsage = dyn_cast<PtrDereference>(TheUsage)) {
-      const DeclRefExpr *DRE = DerefUsage->getUsageExpr();
+    StringRef PtrVarInitExprCode = Lexer::getSourceText(
+        CharSourceRange::getCharRange(
+            PtrVar->getInit()->getBeginLoc(),
+            Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0, SM,
+                                       LOpts)),
+        SM, LOpts);
 
-      StringRef InitCode = Lexer::getSourceText(
-          CharSourceRange::getCharRange(
-              PtrVar->getInit()->getBeginLoc(),
-              Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0, SM,
-                                         LOpts)),
-          SM, LOpts);
-
-      diag(DRE->getLocation(), "usage: %0 dereferenced here",
+    if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
+      // FIXME: Offer a good note here.
+    } else if (isa<PtrDereference>(TheUsage)) {
+      diag(TheUseExpr->getLocation(), "usage: %0 dereferenced here",
            DiagnosticIDs::Note)
           << PtrVar;
-
-      diag(DRE->getLocation(), "consider using the initialisation of %0 here",
-           DiagnosticIDs::Note)
+      diag(TheUseExpr->getLocation(),
+           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
           << PtrVar
-          << FixItHint::CreateReplacement(DRE->getSourceRange(), InitCode);
+          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
+                                          PtrVarInitExprCode);
+    } else if (isa<PtrArgument>(TheUsage)) {
+      diag(TheUseExpr->getLocation(), "usage: %0 used in an expression",
+           DiagnosticIDs::Note)
+          << PtrVar;
+      diag(TheUseExpr->getLocation(),
+           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
+          << PtrVar
+          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
+                                          PtrVarInitExprCode);
     }
 
     /*for (const PtrUsage *AnnotUI : PointerUsages) {
