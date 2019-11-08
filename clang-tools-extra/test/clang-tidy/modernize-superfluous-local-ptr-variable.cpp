@@ -1,10 +1,25 @@
-// RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t
+// RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t -- -- -std=c++17
+
+// FIXME: Run the test with multiple C++ std versions.
+
+#ifdef __has_cpp_attribute
+#if __has_cpp_attribute(noreturn)
+#define NO_RETURN [[noreturn]]
+#else
+#define NO_RETURN
+#endif
+#else
+#define NO_RETURN
+#endif
 
 namespace std {
 struct jmp_buf {
 };
 int setjmp(jmp_buf &env);
-void longjmp(jmp_buf env, int status);
+NO_RETURN void longjmp(jmp_buf env, int status);
+
+NO_RETURN void exit(int exit_code);
+
 } // namespace std
 
 class T {
@@ -140,15 +155,26 @@ void test_checked_dereference() {
   // CHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early return
 }
 
+void test_terminate_checked_dereference() {
+  T *t11 = create<T>();
+  if (!t11)
+    std::exit(42);
+  int i = t11->i;
+  // CHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't11' only participates in one dereference [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: note: 't11' defined here
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't11' is guarded by this condition ...
+  // CHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early program termination
+}
+
 void test_check_loop(unsigned max) {
   for (unsigned i = 0; i < max; ++i) {
-    T *t11 = create<T>();
-    if (!t11)
+    T *t12 = create<T>();
+    if (!t12)
       continue;
-    free(t11);
-    // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: local pointer variable 't11' only used once [modernize-superfluous-local-ptr-variable]
-    // CHECK-MESSAGES: :[[@LINE-5]]:8: note: 't11' defined here
-    // CHECK-MESSAGES: :[[@LINE-5]]:5: note: the value of 't11' is guarded by this condition ...
+    free(t12);
+    // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: local pointer variable 't12' only used once [modernize-superfluous-local-ptr-variable]
+    // CHECK-MESSAGES: :[[@LINE-5]]:8: note: 't12' defined here
+    // CHECK-MESSAGES: :[[@LINE-5]]:5: note: the value of 't12' is guarded by this condition ...
     // CHECK-MESSAGES: :[[@LINE-5]]:7: note: ... resulting in an early continue
   }
 }

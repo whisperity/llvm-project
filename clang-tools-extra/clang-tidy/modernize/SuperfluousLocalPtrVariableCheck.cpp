@@ -50,12 +50,9 @@ static const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(PtrDereferenceM)))
         .bind(InitedVarId);
 
-// FIXME: Match all [[noreturn]] functions, and perhaps also usages in an
-//        assert() call.
-static const auto EarlyReturnLike =
+static const auto FlowBreakingStmt =
     stmt(anyOf(returnStmt(), continueStmt(), breakStmt(), gotoStmt(),
-               cxxThrowExpr(),
-               callExpr(callee(functionDecl(hasName("longjmp"))))))
+               cxxThrowExpr(), callExpr(callee(functionDecl(isNoReturn())))))
         .bind(EarlyReturnStmtId);
 
 /// Matches conditional checks on a pointer variable where the condition results
@@ -66,9 +63,9 @@ static const auto EarlyReturnLike =
 ///     if (!P) { continue; }
 static const auto PtrGuardM =
     ifStmt(hasCondition(hasDescendant(PtrVarUsage.bind(UsedPtrId))),
-           hasThen(anyOf(EarlyReturnLike,
+           hasThen(anyOf(FlowBreakingStmt,
                          compoundStmt(statementCountIs(1),
-                                      hasAnySubstatement(EarlyReturnLike)))),
+                                      hasAnySubstatement(FlowBreakingStmt)))),
            unless(hasElse(stmt())))
         .bind(PtrGuardId);
 
@@ -217,10 +214,9 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           EarlyFlowType = "throw";
         else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
           const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
-          assert(Callee &&
-                 "Flow matcher of call didn't match a function call?");
-          assert(Callee->getName() == "longjmp" && "Flow matched improperly!");
-          EarlyFlowType = "longjmp";
+          assert(Callee && Callee->isNoReturn() &&
+                 "Flow matcher of call didn't match a proper function call?");
+          EarlyFlowType = "program termination";
         } else
           llvm_unreachable("Unhandled kind of Early Flow Stmt in diag!");
 

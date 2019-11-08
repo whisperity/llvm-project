@@ -159,7 +159,6 @@ private:
 ///
 /// This data structure is used to store in which context (expression or
 /// declaration) a previous pointer variable declaration is used.
-// FIXME: This needs a refactoring... again!
 class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
@@ -172,8 +171,6 @@ public:
   /// \note Ownership of UsageInfo is transferred to the collection!
   bool addUsage(PtrUsage *UsageInfo);
 
-  // FIXME: Do we need all these data structure manipulators after all?
-
   /// Adds the given new usage info into the list of usages collected in place
   /// of the old info. If a replacement can take place, the instance pointed to
   /// by OldInfo is destroyed in the process. Otherwise, OldInfo stays valid
@@ -183,11 +180,6 @@ public:
   /// \note Ownership of NewInfo is transferred to the collection!
   // FIXME: Maybe unneeded.
   bool replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo);
-
-  bool hasUsages() const { return !CollectedUses.empty(); }
-
-  // FIXME: Maybe unneeded.
-  bool hasMultipleUsages() const { return CollectedUses.size() > 1; }
 
   const UseVector &getUsages() const { return CollectedUses; }
 
