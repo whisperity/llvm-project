@@ -20,6 +20,21 @@ public:
   void f();
 };
 
+class HasDefault {
+public:
+  int m;
+  HasDefault() : m(0) {}
+  HasDefault(int i) : m(i) {}
+};
+
+class NoDefault {
+public:
+  int m;
+
+  NoDefault() = delete;
+  NoDefault(int i) : m(i) {}
+};
+
 // Definitely and maybe allocates and constructs a T... just used to make the
 // tests better organised. Do not *ever* try to check *how* exactly the ptr
 // var was created...
@@ -153,6 +168,28 @@ void single_checked_initialising_dereference() {
 
   // FIXME: Suggest the below example in >= C++17 mode.
 }
+#endif
+
+void single_checked_ctor_initialising_dereference_1() {
+  T *t14 = try_create<T>();
+  if (!t14)
+    return;
+  NoDefault ND = t14->i;
+
+  // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
+  // initialisation won't work.
+}
+
+#if 0
+void single_checked_ctor_initialising_dereference_2() {
+  T *t15 = try_create<T>();
+  if (!t15)
+    return;
+  HasDefault HD = t15->i;
+
+  // FIXME: Test for suggestion on >= C++17 mode.
+}
+
 
 int SCID_FIX_17() {
   int i;

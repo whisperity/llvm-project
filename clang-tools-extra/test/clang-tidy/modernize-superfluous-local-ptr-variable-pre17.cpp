@@ -13,6 +13,21 @@ public:
   void f();
 };
 
+class HasDefault {
+public:
+  int m;
+  HasDefault() : m(0) {}
+  HasDefault(int i) : m(i) {}
+};
+
+struct NoDefault {
+public:
+  int m;
+
+  NoDefault() = delete;
+  NoDefault(int i) : m(i) {}
+};
+
 // Definitely and maybe allocates and constructs a T... just used to make the
 // tests better organised. Do not *ever* try to check *how* exactly the ptr
 // var was created...
@@ -146,4 +161,25 @@ void single_checked_initialising_dereference() {
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't13' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't13' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer, the branch, and the assignment to 'i' into an inner scope (between {brackets})
+}
+
+void single_checked_ctor_initialising_dereference_1() {
+  T *t14 = try_create<T>();
+  if (!t14)
+    return;
+  NoDefault ND = t14->i;
+
+  // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
+  // initialisation won't work.
+}
+
+void single_checked_ctor_initialising_dereference_2() {
+  T *t15 = try_create<T>();
+  if (!t15)
+    return;
+  HasDefault HD = t15->i;
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't15' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:19: note: usage: 't15' dereferenced in the initialisation of 'HD'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't15' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HD' into an inner scope (between {brackets})
 }

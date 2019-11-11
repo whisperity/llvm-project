@@ -47,6 +47,7 @@ static const StatementMatcher PtrDereferenceM = anyOf(
                   hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId));
 
+// FIXME: Match initialisations through a constructor call here.
 static const auto VarInitFromPtrDereference =
     varDecl(hasInitializer(ignoringParenImpCasts(PtrDereferenceM)))
         .bind(InitedVarId);
