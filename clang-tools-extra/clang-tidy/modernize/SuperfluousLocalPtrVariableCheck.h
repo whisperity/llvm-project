@@ -211,6 +211,10 @@ public:
   void onEndOfTranslationUnit() override;
 
 private:
+  void emitMainDiagnostic(const VarDecl *Ptr);
+  void emitConsiderUsingInitCodeDiagnostic(const VarDecl *Ptr,
+                                           const PtrUsage *Usage);
+
   UsageMap Usages;
 };
 

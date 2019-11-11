@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy %s modernize-superfluous-local-ptr-variable %t -- -- -std=c++17-or-later
+// RUN: %check_clang_tidy -std=c++17-or-later %s modernize-superfluous-local-ptr-variable %t
 
 namespace std {
 int rand();
@@ -40,7 +40,7 @@ void single_member_access() {
   (void)t2->i;
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't2' dereferenced here
-  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't2' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't2' here
 }
 
 void ptr_of_auto_dereference() {
@@ -48,7 +48,7 @@ void ptr_of_auto_dereference() {
   (void)t3->tp;
   // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't3' dereferenced here
-  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the initialisation of 't3' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't3' here
 }
 
 void single_member_multiple_access() {
@@ -67,7 +67,7 @@ void passing_the_pointer() {
   std::free(t5);
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't5' used in an expression
-  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't5' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't5' here
 }
 
 void single_member_to_variable() {
@@ -75,7 +75,7 @@ void single_member_to_variable() {
   int i = t6->i;
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't6' dereferenced in the initialisation of 'i'
-  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the initialisation of 't6' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the code that initialises 't6' here
 }
 
 void single_member_to_auto_variable_1() {
@@ -83,7 +83,7 @@ void single_member_to_auto_variable_1() {
   auto i = t7->i;
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't7' dereferenced in the initialisation of 'i'
-  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the initialisation of 't7' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't7' here
 }
 
 void single_member_to_auto_variable_2() {
@@ -91,7 +91,7 @@ void single_member_to_auto_variable_2() {
   auto n = t8->tp;
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't8' dereferenced in the initialisation of 'n'
-  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the initialisation of 't8' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't8' here
 }
 
 void ptrvar_initialised_out_of_line() {
@@ -114,7 +114,7 @@ void complex_init_stmt(bool b) {
   std::free(t10);
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't10' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't10' used in an expression
-  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the initialisation of 't10' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't10' here
 }
 
 void single_memfn_call() {
@@ -122,10 +122,9 @@ void single_memfn_call() {
   t11->f();
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't11' dereferenced here
-  // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the initialisation of 't11' here
+  // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't11' here
 }
 
-#if 0
 void single_checked_passing() {
   T *t12 = try_create<T>();
   if (!t12)
@@ -144,6 +143,7 @@ void single_checked_dereference() {
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
+#if 0
 void single_checked_initialising_dereference() {
   T *t13 = try_create<T>();
   if (!t13)
@@ -156,7 +156,7 @@ void single_checked_initialising_dereference() {
 
 int SCID_FIX_17() {
   int i;
-  if (const T *p = try_create<T>(); !(p && ((i = p->i), void().true)))
+  if (const T *p = try_create<T>(); !(p && ((i = p->i), void(), true)))
     // clang-format off
                                                      // ^~~~~~~
                                                      // only suggest if decltype(i) has operator,() !!!

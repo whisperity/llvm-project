@@ -70,6 +70,23 @@ static const auto PtrGuardM =
            unless(hasElse(stmt())))
         .bind(PtrGuardId);
 
+/// Get the code text that initialises a variable.
+/// If the initialisation happens entirely through a macro, returns empty, or
+/// empty parens, depending on OuterParen's value.
+static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
+                                      bool OuterParen = true) {
+  return (Twine(OuterParen ? "(" : "") +
+          Lexer::getSourceText(
+              CharSourceRange::getCharRange(
+                  Var->getInit()->getBeginLoc(),
+                  Lexer::getLocForEndOfToken(Var->getInit()->getEndLoc(), 0,
+                                             Ctx.getSourceManager(),
+                                             Ctx.getLangOpts())),
+              Ctx.getSourceManager(), Ctx.getLangOpts()) +
+          Twine(OuterParen ? ")" : ""))
+      .str();
+}
+
 // FIXME: The real end goal of this check is to find a pair of ptrs created
 //        by dereferencing the first.
 
@@ -132,105 +149,157 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     const UsageCollection::UseVector &PointerUsages =
         Usage.second.getUsages<PointerPtrUsage>();
 
+    LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
+               llvm::dbgs() << "\n\tusages for object: " << PointeeUsages.size()
+                            << "\n\tusages for pointer (guards): "
+                            << PointerUsages.size() << '\n';);
+
     if (PointeeUsages.size() > 1) {
       LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
                  llvm::dbgs()
                  << "\n has multiple (non-annotation) usages -- ignoring!\n";);
       continue;
     }
+    if (PointerUsages.size() > 1) {
+      // Currently, "Pointer(-only) usages" are if() guards, from which if there
+      // multiple, no automatic rewriting seems sensible enough.
+      LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
+                 llvm::dbgs()
+                 << "\n has multiple (annotation) usages -- ignoring!\n";);
+      continue;
+    }
 
-    const SourceManager &SM = PtrVar->getASTContext().getSourceManager();
     const PtrUsage *TheUsage = PointeeUsages.front();
     const auto *TheUseExpr = TheUsage->getUsageExpr();
-
-    diag(PtrVar->getLocation(), "local pointer variable %0 might be "
-                                "superfluous as it is only used once")
-        << PtrVar <<
-        // Create a "dummy" FixIt (changing the var's name to itself). This is
-        // done so that later FixIt hints (offered as suggestions) do NOT get
-        // applied if '--fix' is specified to Tidy.
-        FixItHint::CreateReplacement(
-            CharSourceRange::getCharRange(
-                PtrVar->getLocation(),
-                Lexer::getLocForEndOfToken(PtrVar->getLocation(), 0, SM,
-                                           LOpts)),
-            PtrVar->getName());
-
-    std::string PtrVarInitExprCode =
-        (Twine('(') +
-         Lexer::getSourceText(
-             CharSourceRange::getCharRange(
-                 PtrVar->getInit()->getBeginLoc(),
-                 Lexer::getLocForEndOfToken(PtrVar->getInit()->getEndLoc(), 0,
-                                            SM, LOpts)),
-             SM, LOpts) +
-         Twine(')'))
-            .str();
+    // Different type of diagnostics should be created if there is an annotating
+    // guard statement on the pointer's value.
+    bool HasPointerAnnotatingUsages = !PointerUsages.empty();
 
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
-      // FIXME: Offer a good note here.
+      emitMainDiagnostic(PtrVar);
+
+      const VarDecl *InitedVar = DerefForVarInit->getInitialisedVar();
       diag(TheUseExpr->getLocation(),
            "usage: %0 dereferenced in the initialisation of %1",
            DiagnosticIDs::Note)
-          << PtrVar << DerefForVarInit->getInitialisedVar();
-      diag(TheUseExpr->getLocation(),
-           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
-          << PtrVar
-          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
-                                          PtrVarInitExprCode);
-    } else if (isa<PtrDereference>(TheUsage)) {
-      diag(TheUseExpr->getLocation(), "usage: %0 dereferenced here",
-           DiagnosticIDs::Note)
-          << PtrVar;
-      diag(TheUseExpr->getLocation(),
-           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
-          << PtrVar
-          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
-                                          PtrVarInitExprCode);
-    } else if (isa<PtrArgument>(TheUsage)) {
-      diag(TheUseExpr->getLocation(), "usage: %0 used in an expression",
-           DiagnosticIDs::Note)
-          << PtrVar;
-      diag(TheUseExpr->getLocation(),
-           "consider using the initialisation of %0 here", DiagnosticIDs::Note)
-          << PtrVar
-          << FixItHint::CreateReplacement(TheUseExpr->getSourceRange(),
-                                          PtrVarInitExprCode);
-    }
+          << PtrVar << InitedVar;
 
-    /*for (const PtrUsage *AnnotUI : PointerUsages) {
-      if (const auto *Guard = dyn_cast<PtrGuard>(AnnotUI)) {
-        diag(Guard->getGuardStmt()->getIfLoc(),
-             "the value of %0 is guarded by this condition ...",
-             DiagnosticIDs::Note)
-            << UsedDecl;
+      if (!HasPointerAnnotatingUsages)
+        emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
+      else {
+        if (const auto *Guard = dyn_cast<PtrGuard>(PointerUsages.front())) {
+          std::string EarlyFlowType;
+          const Stmt *FlowStmt = Guard->getFlowStmt();
+          if (isa<ReturnStmt>(FlowStmt))
+            EarlyFlowType = "return";
+          else if (isa<ContinueStmt>(FlowStmt))
+            EarlyFlowType = "continue";
+          else if (isa<BreakStmt>(FlowStmt))
+            EarlyFlowType = "break";
+          else if (isa<GotoStmt>(FlowStmt))
+            EarlyFlowType = "goto";
+          else if (isa<CXXThrowExpr>(FlowStmt))
+            EarlyFlowType = "throw";
+          else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
+            const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+            assert(Callee && "CallExpr should represent a function call");
+            if (Callee->isNoReturn())
+              EarlyFlowType = "program termination";
+          }
 
-        std::string EarlyFlowType;
-        const Stmt *FlowStmt = Guard->getFlowStmt();
-        if (isa<ReturnStmt>(FlowStmt))
-          EarlyFlowType = "return";
-        else if (isa<ContinueStmt>(FlowStmt))
-          EarlyFlowType = "continue";
-        else if (isa<BreakStmt>(FlowStmt))
-          EarlyFlowType = "break";
-        else if (isa<GotoStmt>(FlowStmt))
-          EarlyFlowType = "goto";
-        else if (isa<CXXThrowExpr>(FlowStmt))
-          EarlyFlowType = "throw";
-        else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
-          const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
-          assert(Callee && Callee->isNoReturn() &&
-                 "Flow matcher of call didn't match a proper function call?");
-          EarlyFlowType = "program termination";
-        } else
-          llvm_unreachable("Unhandled kind of Early Flow Stmt in diag!");
+          const char *GuardDiagMsg;
+          if (EarlyFlowType.empty())
+            GuardDiagMsg = "the value of %0 is guarded by this branch";
+          else
+            GuardDiagMsg =
+                "the value of %0 is guarded by this branch, resulting in '%1'";
 
-        diag(Guard->getFlowStmt()->getBeginLoc(),
-             "... resulting in an early %0", DiagnosticIDs::Note)
-            << EarlyFlowType;
+          diag(Guard->getGuardStmt()->getIfLoc(), GuardDiagMsg,
+               DiagnosticIDs::Note)
+              << PtrVar << EarlyFlowType;
+        }
+
+        if (!LOpts.CPlusPlus || (LOpts.CPlusPlus && !LOpts.CPlusPlus17)) {
+          // Pre-C++17 this case cannot be reasonably rewritten, as the
+          // initialising statement would appear and execute twice, which, e.g.
+          // for an allocation, would immediately cause a memory leak.
+          // FIXME: Perhaps don't warn for this all the time and hide it behind
+          //        an option?
+          diag(PtrVar->getLocation(),
+               "consider putting the pointer, the branch, and the assignment "
+               "to %0 into an inner scope (between {brackets})",
+               DiagnosticIDs::Note)
+              << InitedVar;
+        } else if (LOpts.CPlusPlus17) {
+          // FIXME: This should be a rewrite.
+          diag(PtrVar->getLocation(), "post-cpp17", DiagnosticIDs::Note);
+        }
       }
-    }*/
+    } else if (isa<PtrDereference>(TheUsage) || isa<PtrArgument>(TheUsage)) {
+      if (HasPointerAnnotatingUsages)
+        // Guarded versions of dereferences and passing of the pointer cannot be
+        // reasonably rewritten.
+        continue;
+
+      emitMainDiagnostic(PtrVar);
+
+      const char *UsageDescription;
+      if (isa<PtrDereference>(TheUsage))
+        UsageDescription = "usage: %0 dereferenced here";
+      else
+        UsageDescription = "usage: %0 used in an expression";
+
+      diag(TheUseExpr->getLocation(), UsageDescription, DiagnosticIDs::Note)
+          << PtrVar;
+
+      emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
+    }
   }
+}
+
+/// Helper function that emits the main "local ptr variable may be superfluous"
+/// warning for the given variable.
+void SuperfluousLocalPtrVariableCheck::emitMainDiagnostic(const VarDecl *Ptr) {
+  // FIXME: Mention visibility.
+  diag(Ptr->getLocation(), "local pointer variable %0 might be "
+                           "superfluous as it is only used once")
+      << Ptr <<
+      // Create a "dummy" FixIt (changing the var's name to itself). This is
+      // done so that later FixIt hints (offered as suggestions) do NOT get
+      // applied if '--fix' is specified to Tidy.
+      FixItHint::CreateReplacement(
+          CharSourceRange::getCharRange(
+              Ptr->getLocation(), Lexer::getLocForEndOfToken(
+                                      Ptr->getLocation(), 0,
+                                      Ptr->getASTContext().getSourceManager(),
+                                      Ptr->getASTContext().getLangOpts())),
+          Ptr->getName());
+}
+
+/// Helper function that emits a note diagnostic for the usage of a pointer
+/// variable suggesting the user writes the code text that the pointer was
+/// initialised with to the point of use instead.
+void SuperfluousLocalPtrVariableCheck::emitConsiderUsingInitCodeDiagnostic(
+    const VarDecl *Ptr, const PtrUsage *Usage) {
+  std::string PtrVarInitExprCode =
+      getVarInitExprCode(Ptr, Ptr->getASTContext(), /* OuterParen =*/true);
+  LLVM_DEBUG(llvm::dbgs()
+                 << "Generated initialisation expression-statement code for\n";
+             Ptr->dump(llvm::dbgs());
+             llvm::dbgs() << "\n as: " << PtrVarInitExprCode << '\n';);
+  if (PtrVarInitExprCode == "()")
+    // If fetching the code text for the initialisation of the used var,
+    // make sure no "hint" is created for the note.
+    PtrVarInitExprCode.clear();
+
+  auto ConsiderNote = diag(Usage->getUsageExpr()->getLocation(),
+                           "consider using the code that initialises %0 here",
+                           DiagnosticIDs::Note)
+                      << Ptr;
+
+  if (!PtrVarInitExprCode.empty())
+    ConsiderNote << FixItHint::CreateReplacement(
+        Usage->getUsageExpr()->getSourceRange(), PtrVarInitExprCode);
 }
 
 bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
