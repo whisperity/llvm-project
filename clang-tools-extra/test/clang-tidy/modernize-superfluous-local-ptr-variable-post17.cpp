@@ -35,6 +35,16 @@ public:
   NoDefault(int i) : m(i) {}
 };
 
+class HasUDComma {
+public:
+  int m;
+
+  HasUDComma() : m(0) {}
+  HasUDComma(int i) : m(i) {}
+
+  bool operator,(bool b) { return !b; }
+};
+
 // Definitely and maybe allocates and constructs a T... just used to make the
 // tests better organised. Do not *ever* try to check *how* exactly the ptr
 // var was created...
@@ -190,6 +200,14 @@ void single_checked_ctor_initialising_dereference_2() {
   // FIXME: Test for suggestion on >= C++17 mode.
 }
 
+void single_checked_ctor_initialising_dereference_3() {
+  T *t15 = try_create<T>();
+  if (!t15)
+    return;
+  HasUDComma HUDC = t15->i;
+
+  // FIXME: The suggestion here has to include the "void()".
+}
 
 int SCID_FIX_17() {
   int i;
@@ -204,28 +222,6 @@ int SCID_FIX_17() {
 #endif
 
 /*
-void test_checked_usage() {
-  T *t9 = create<T>();
-  if (!t9)
-    return;
-  free(t9);
-  // NCHECK-MESSAGES: :[[@LINE-1]]:8: warning: local pointer variable 't9' only used once [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-5]]:6: note: 't9' defined here
-  // NCHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't9' is guarded by this condition ...
-  // NCHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early return
-}
-
-void test_checked_dereference() {
-  T *t10 = create<T>();
-  if (!t10)
-    return;
-  int i = t10->i;
-  // NCHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't10' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-5]]:6: note: 't10' defined here
-  // NCHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't10' is guarded by this condition ...
-  // NCHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early return
-}
-
 void test_terminate_checked_dereference() {
   T *t11 = create<T>();
   if (!t11)

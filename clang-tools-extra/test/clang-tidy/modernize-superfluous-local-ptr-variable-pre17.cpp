@@ -18,6 +18,7 @@ public:
   int m;
   HasDefault() : m(0) {}
   HasDefault(int i) : m(i) {}
+  HasDefault(int i, int j) : m(i * j) {}
 };
 
 struct NoDefault {
@@ -163,6 +164,7 @@ void single_checked_initialising_dereference() {
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer, the branch, and the assignment to 'i' into an inner scope (between {brackets})
 }
 
+/*
 void single_checked_ctor_initialising_dereference_1() {
   T *t14 = try_create<T>();
   if (!t14)
@@ -172,14 +174,53 @@ void single_checked_ctor_initialising_dereference_1() {
   // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
   // initialisation won't work.
 }
+*/
 
-void single_checked_ctor_initialising_dereference_2() {
+void single_checked_ctor_initialising_dereference_2a() {
   T *t15 = try_create<T>();
   if (!t15)
     return;
-  HasDefault HD = t15->i;
+  HasDefault HDa = t15->i;
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't15' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:19: note: usage: 't15' dereferenced in the initialisation of 'HD'
+  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't15' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't15' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HD' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDa' into an inner scope (between {brackets})
+}
+
+void single_checked_ctor_initialising_dereference_2b() {
+  T *t16 = try_create<T>();
+  if (!t16)
+    return;
+  HasDefault HDb(t16->i);
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't16' dereferenced in the initialisation of 'HDb'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDb' into an inner scope (between {brackets})
+}
+
+void single_checked_ctor_initialising_dereference_2c() {
+  T *t17 = try_create<T>();
+  if (!t17)
+    return;
+  HasDefault HDc{t17->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDc'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDc' into an inner scope (between {brackets})
+}
+
+void single_checked_ctor_initialising_dereference_3a() {
+  T *t18 = try_create<T>();
+  if (!t18)
+    return;
+  HasDefault HD3a(t18->i, 1);
+  // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
+}
+
+void single_checked_ctor_initialising_dereference_3b() {
+  T *t18 = try_create<T>();
+  if (!t18)
+    return;
+  HasDefault HD3b{t18->i, 1};
+  // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }

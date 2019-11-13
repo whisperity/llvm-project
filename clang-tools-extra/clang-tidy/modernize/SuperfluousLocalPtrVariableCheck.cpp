@@ -47,9 +47,16 @@ static const StatementMatcher PtrDereferenceM = anyOf(
                   hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId));
 
-// FIXME: Match initialisations through a constructor call here.
+/// Matches construction expressions which "trivially" initialise something from
+/// a pointer.
+static const auto ConstructExprWithPtrDereference =
+    ignoringElidableConstructorCall(
+        cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereferenceM)));
+
 static const auto VarInitFromPtrDereference =
-    varDecl(hasInitializer(ignoringParenImpCasts(PtrDereferenceM)))
+    varDecl(anyOf(hasInitializer(ignoringParenImpCasts(
+                      anyOf(PtrDereferenceM, ConstructExprWithPtrDereference))),
+                  hasDescendant(expr(ConstructExprWithPtrDereference))))
         .bind(InitedVarId);
 
 static const auto FlowBreakingStmt =
@@ -233,7 +240,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
               << InitedVar;
         } else if (LOpts.CPlusPlus17) {
           // FIXME: This should be a rewrite.
-          diag(PtrVar->getLocation(), "post-cpp17", DiagnosticIDs::Note);
+          diag(PtrVar->getLocation(), "post-cpp17", DiagnosticIDs::Error);
         }
       }
     } else if (isa<PtrDereference>(TheUsage) || isa<PtrArgument>(TheUsage)) {
