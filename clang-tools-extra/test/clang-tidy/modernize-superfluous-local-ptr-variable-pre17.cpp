@@ -13,6 +13,8 @@ public:
   void f();
 };
 
+struct TrivialAggregate { int m; };
+
 class HasDefault {
 public:
   int m;
@@ -28,6 +30,8 @@ public:
   NoDefault() = delete;
   NoDefault(int i) : m(i) {}
 };
+
+typedef NoDefault ND;
 
 // Definitely and maybe allocates and constructs a T... just used to make the
 // tests better organised. Do not *ever* try to check *how* exactly the ptr
@@ -164,17 +168,15 @@ void single_checked_initialising_dereference() {
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer, the branch, and the assignment to 'i' into an inner scope (between {brackets})
 }
 
-/*
 void single_checked_ctor_initialising_dereference_1() {
   T *t14 = try_create<T>();
   if (!t14)
     return;
-  NoDefault ND = t14->i;
+  ND NDv = t14->i;
 
   // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
   // initialisation won't work.
 }
-*/
 
 void single_checked_ctor_initialising_dereference_2a() {
   T *t15 = try_create<T>();
@@ -208,6 +210,19 @@ void single_checked_ctor_initialising_dereference_2c() {
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDc' into an inner scope (between {brackets})
 }
+
+/*
+void single_checked_ctor_initialising_dereference_2d() {
+  T *t18 = try_create<T>();
+  if (!t18)
+    return;
+  TrivialAggregate ta{t18->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
+}
+*/
 
 void single_checked_ctor_initialising_dereference_3a() {
   T *t18 = try_create<T>();

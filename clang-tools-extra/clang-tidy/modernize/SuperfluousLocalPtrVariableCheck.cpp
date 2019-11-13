@@ -53,6 +53,7 @@ static const auto ConstructExprWithPtrDereference =
     ignoringElidableConstructorCall(
         cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereferenceM)));
 
+// FIXME: Match aggregate initialisation through initlists (TrivialAggregate in test/...pre17.cpp)
 static const auto VarInitFromPtrDereference =
     varDecl(anyOf(hasInitializer(ignoringParenImpCasts(
                       anyOf(PtrDereferenceM, ConstructExprWithPtrDereference))),
@@ -184,9 +185,24 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     bool HasPointerAnnotatingUsages = !PointerUsages.empty();
 
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
+      const VarDecl *InitedVar = DerefForVarInit->getInitialisedVar();
+
+      const Type *VarTy = InitedVar->getType()->getUnqualifiedDesugaredType();
+      LLVM_DEBUG(llvm::dbgs() << "Initialised variable " << InitedVar->getName() << " has type:\n";
+                   InitedVar->getType().dump(llvm::dbgs()); llvm::dbgs() << '\n';
+      VarTy->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+
+      if (const auto* Record = VarTy->getAsCXXRecordDecl()) {
+        LLVM_DEBUG(llvm::dbgs() << "Initialised variable " << InitedVar->getName() << " has record type.\n";);
+        LLVM_DEBUG(llvm::dbgs() << Record->hasDefaultConstructor() << ' ' << Record->hasTrivialDefaultConstructor() << ' ' << Record->hasUserProvidedDefaultConstructor() << ' ' << Record->hasNonTrivialDefaultConstructor() << '\n';);
+        if (!Record->hasDefaultConstructor()) {
+          LLVM_DEBUG(llvm::dbgs() << "the default ctor is deleted.\n";);
+          continue;
+        }
+      }
+
       emitMainDiagnostic(PtrVar);
 
-      const VarDecl *InitedVar = DerefForVarInit->getInitialisedVar();
       diag(TheUseExpr->getLocation(),
            "usage: %0 dereferenced in the initialisation of %1",
            DiagnosticIDs::Note)
