@@ -217,10 +217,10 @@ void single_checked_ctor_initialising_dereference_2d() {
   if (!t18)
     return;
   TrivialAggregate ta{t18->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
+  // NCHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // NCHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
+  // NCHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
+  // NCHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
 }
 */
 

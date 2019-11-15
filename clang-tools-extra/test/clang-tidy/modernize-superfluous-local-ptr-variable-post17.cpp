@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy -std=c++17-or-later %s modernize-superfluous-local-ptr-variable %t
+// NO: %check_clang_tidy -std=c++17-or-later %s modernize-superfluous-local-ptr-variable %t
 
 namespace std {
 int rand();

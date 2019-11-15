@@ -81,7 +81,7 @@ static const auto PtrGuardM =
 
 /// Get the code text that initialises a variable.
 /// If the initialisation happens entirely through a macro, returns empty, or
-/// empty parens, depending on OuterParen's value.
+/// empty parens (i.e. "()"), depending on OuterParen's value.
 static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
                                       bool OuterParen = true) {
   return (Twine(OuterParen ? "(" : "") +
@@ -94,6 +94,45 @@ static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
               Ctx.getSourceManager(), Ctx.getLangOpts()) +
           Twine(OuterParen ? ")" : ""))
       .str();
+}
+
+static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
+  assert(RD->hasDefinition() &&
+         "for forward declarations the answer is unknown.");
+  LLVM_DEBUG(llvm::dbgs()
+                 << "Checking whether this record is default constructible:\n";
+             RD->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+
+  if (RD->hasDefaultConstructor()) {
+    LLVM_DEBUG(llvm::dbgs() << "has-default-ctor\n");
+
+    for (const auto &D : RD->decls()) {
+      LLVM_DEBUG(llvm::dbgs() << "Checking declaration:\n";
+                 D->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+      const auto *ConD = dyn_cast<CXXConstructorDecl>(D);
+      if (!ConD)
+        continue;
+      LLVM_DEBUG(llvm::dbgs() << "\tis a ctor.\n");
+      if (!ConD->isDefaultConstructor())
+        continue;
+      LLVM_DEBUG(llvm::dbgs() << "\tis a default ctor.\n");
+
+      if (ConD->isDeleted() || ConD->isDeletedAsWritten()) {
+        LLVM_DEBUG(llvm::dbgs() << "\tis deleted / deleted-as-written\n");
+        return false;
+      }
+      if (ConD->isDefaulted() || ConD->isExplicitlyDefaulted()) {
+        LLVM_DEBUG(llvm::dbgs() << "\tis defaulted / explicitly defaulted.\n");
+        return true;
+      }
+
+      // Found a default-ctor, so we can default-construct.
+      return true;
+    }
+  }
+
+  LLVM_DEBUG(llvm::dbgs() << "returning false outside...\n");
+  return false;
 }
 
 // FIXME: The real end goal of this check is to find a pair of ptrs created
@@ -192,17 +231,16 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                    InitedVar->getType().dump(llvm::dbgs()); llvm::dbgs() << '\n';
       VarTy->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
 
-      if (const auto* Record = VarTy->getAsCXXRecordDecl()) {
-        LLVM_DEBUG(llvm::dbgs() << "Initialised variable " << InitedVar->getName() << " has record type.\n";);
-        LLVM_DEBUG(llvm::dbgs() << Record->hasDefaultConstructor() << ' ' << Record->hasTrivialDefaultConstructor() << ' ' << Record->hasUserProvidedDefaultConstructor() << ' ' << Record->hasNonTrivialDefaultConstructor() << '\n';);
-        if (!Record->hasDefaultConstructor()) {
-          LLVM_DEBUG(llvm::dbgs() << "the default ctor is deleted.\n";);
+      if (const auto *RD = VarTy->getAsCXXRecordDecl())
+        if (!canBeDefaultConstructed(RD)) {
+          // Do not suggest the rewrite as the inited variable couldn't be
+          // default-constructed.
+          LLVM_DEBUG(llvm::dbgs() << "Variable " << InitedVar->getName()
+                                  << " can't be default-ctored.\n");
           continue;
         }
-      }
 
       emitMainDiagnostic(PtrVar);
-
       diag(TheUseExpr->getLocation(),
            "usage: %0 dereferenced in the initialisation of %1",
            DiagnosticIDs::Note)
