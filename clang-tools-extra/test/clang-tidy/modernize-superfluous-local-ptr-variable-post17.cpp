@@ -1,4 +1,4 @@
-// NO: %check_clang_tidy -std=c++17-or-later %s modernize-superfluous-local-ptr-variable %t
+// RUN: %check_clang_tidy -std=c++17-or-later %s modernize-superfluous-local-ptr-variable %t
 
 namespace std {
 int rand();
@@ -20,11 +20,17 @@ public:
   void f();
 };
 
+struct TrivialAggregate {
+  int m;
+};
+
 class HasDefault {
 public:
   int m;
   HasDefault() : m(0) {}
-  HasDefault(int i) : m(i) {}
+  HasDefault(int i) : m(i) {
+  }
+  HasDefault(int i, int j) : m(i * j) {}
 };
 
 class NoDefault {
@@ -150,61 +156,100 @@ void single_memfn_call() {
   // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't11' here
 }
 
-void single_checked_passing() {
-  T *t12 = try_create<T>();
-  if (!t12)
-    return;
-  std::free(t12);
+bool just_a_guard() {
+  T *t10 = try_create<T>();
+  if (!t10)
+    return false;
+  return true;
+}
 
+void single_checked_passing() {
+  T *t13 = try_create<T>();
+  if (!t13)
+    return;
+  std::free(t13);
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
 void single_checked_dereference() {
-  T *t12 = try_create<T>();
-  if (!t12)
-    return;
-  std::free(t12->tp);
-
-  // NO-WARN: This example cannot be reasonably rewritten.
-}
-
-#if 0
-void single_checked_initialising_dereference() {
   T *t13 = try_create<T>();
   if (!t13)
     return;
-  int i = t13->i;
-  i += 1;
-
-  // FIXME: Suggest the below example in >= C++17 mode.
+  std::free(t13->tp);
+  // NO-WARN: This example cannot be reasonably rewritten.
 }
-#endif
 
-void single_checked_ctor_initialising_dereference_1() {
+void single_checked_initialising_dereference() {
   T *t14 = try_create<T>();
   if (!t14)
     return;
-  NoDefault ND = t14->i;
+  int i = t14->i;
+  i += 1;
+  // FIXME: Test for suggestion on >= C++17 mode.
+}
 
+void single_checked_ctor_initialising_dereference_1() {
+  T *t15 = try_create<T>();
+  if (!t15)
+    return;
+  NoDefault ND = t15->i;
   // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
   // initialisation won't work.
 }
 
-#if 0
-void single_checked_ctor_initialising_dereference_2() {
-  T *t15 = try_create<T>();
-  if (!t15)
+void single_checked_ctor_initialising_dereference_2a() {
+  T *t16 = try_create<T>();
+  if (!t16)
     return;
-  HasDefault HD = t15->i;
-
-  // FIXME: Test for suggestion on >= C++17 mode.
+  HasDefault HDa = t16->i;
+  // FIXME: Suggest C++ >= 17-like alternative
 }
 
-void single_checked_ctor_initialising_dereference_3() {
-  T *t15 = try_create<T>();
-  if (!t15)
+void single_checked_ctor_initialising_dereference_2b() {
+  T *t17 = try_create<T>();
+  if (!t17)
     return;
-  HasUDComma HUDC = t15->i;
+  HasDefault HDb(t17->i);
+  // FIXME: Suggest C++ >= 17-like alternative
+}
+
+void single_checked_ctor_initialising_dereference_2c() {
+  T *t18 = try_create<T>();
+  if (!t18)
+    return;
+  HasDefault HDc{t18->i};
+  // FIXME: Suggest C++ >= 17-like alternative
+}
+
+void single_checked_ctor_initialising_dereference_2d() {
+  T *t19 = try_create<T>();
+  if (!t19)
+    return;
+  TrivialAggregate ta{t19->i};
+  // FIXME: Suggest C++ >= 17-like alternative
+}
+
+void single_checked_ctor_initialising_dereference_3a() {
+  T *t20 = try_create<T>();
+  if (!t20)
+    return;
+  HasDefault HD3a(t20->i, 1);
+  // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
+}
+
+void single_checked_ctor_initialising_dereference_3b() {
+  T *t20 = try_create<T>();
+  if (!t20)
+    return;
+  HasDefault HD3b{t20->i, 1};
+  // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
+}
+
+void single_checked_ctor_initialising_dereference_4() {
+  T *t21 = try_create<T>();
+  if (!t21)
+    return;
+  HasUDComma HUDC = t21->i;
 
   // FIXME: The suggestion here has to include the "void()".
 }
@@ -219,30 +264,3 @@ int SCID_FIX_17() {
     return -1;
   return i + 1;
 }
-#endif
-
-/*
-void test_terminate_checked_dereference() {
-  T *t11 = create<T>();
-  if (!t11)
-    std::exit(42);
-  int i = t11->i;
-  // NCHECK-MESSAGES: :[[@LINE-1]]:11: warning: local pointer variable 't11' only participates in one dereference [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-5]]:6: note: 't11' defined here
-  // NCHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't11' is guarded by this condition ...
-  // NCHECK-MESSAGES: :[[@LINE-5]]:5: note: ... resulting in an early program termination
-}
-
-void test_check_loop(unsigned max) {
-  for (unsigned i = 0; i < max; ++i) {
-    T *t12 = create<T>();
-    if (!t12)
-      continue;
-    free(t12);
-    // NCHECK-MESSAGES: :[[@LINE-1]]:10: warning: local pointer variable 't12' only used once [modernize-superfluous-local-ptr-variable]
-    // NCHECK-MESSAGES: :[[@LINE-5]]:8: note: 't12' defined here
-    // NCHECK-MESSAGES: :[[@LINE-5]]:5: note: the value of 't12' is guarded by this condition ...
-    // NCHECK-MESSAGES: :[[@LINE-5]]:7: note: ... resulting in an early continue
-  }
-}
-*/

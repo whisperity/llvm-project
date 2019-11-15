@@ -13,7 +13,9 @@ public:
   void f();
 };
 
-struct TrivialAggregate { int m; };
+struct TrivialAggregate {
+  int m;
+};
 
 class HasDefault {
 public:
@@ -122,43 +124,50 @@ void ptrvar_initialised_out_of_line_conditionally() {
   std::free(t9);
 }
 
+bool just_a_guard() {
+  T *t10 = try_create<T>();
+  if (!t10)
+    return false;
+  return true;
+}
+
 void complex_init_stmt(bool b) {
-  T *t10 = b ? create<T>() : try_create<T>();
-  std::free(t10);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't10' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't10' used in an expression
-  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't10' here
+  T *t11 = b ? create<T>() : try_create<T>();
+  std::free(t11);
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't11' used in an expression
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't11' here
 }
 
 void single_memfn_call() {
-  T *t11 = create<T>();
-  t11->f();
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't11' dereferenced here
-  // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't11' here
+  T *t12 = create<T>();
+  t12->f();
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't12' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't12' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't12' here
 }
 
 void single_checked_passing() {
-  T *t12 = try_create<T>();
-  if (!t12)
+  T *t13 = try_create<T>();
+  if (!t13)
     return;
-  std::free(t12);
+  std::free(t13);
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
 void single_checked_dereference() {
-  T *t12 = try_create<T>();
-  if (!t12)
+  T *t13 = try_create<T>();
+  if (!t13)
     return;
-  std::free(t12->tp);
+  std::free(t13->tp);
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
 void single_checked_initialising_dereference() {
-  T *t13 = try_create<T>();
-  if (!t13)
+  T *t14 = try_create<T>();
+  if (!t14)
     return;
-  int i = t13->i;
+  int i = t14->i;
   i += 1;
   // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't13' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't13' dereferenced in the initialisation of 'i'
@@ -167,70 +176,70 @@ void single_checked_initialising_dereference() {
 }
 
 void single_checked_ctor_initialising_dereference_1() {
-  T *t14 = try_create<T>();
-  if (!t14)
+  T *t15 = try_create<T>();
+  if (!t15)
     return;
-  ND NDv = t14->i;
+  ND NDv = t15->i;
   // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
   // initialisation won't work.
 }
 
 void single_checked_ctor_initialising_dereference_2a() {
-  T *t15 = try_create<T>();
-  if (!t15)
+  T *t16 = try_create<T>();
+  if (!t16)
     return;
-  HasDefault HDa = t15->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't15' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't15' dereferenced in the initialisation of 'HDa'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't15' is guarded by this branch, resulting in 'return'
+  HasDefault HDa = t16->i;
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDa' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2b() {
-  T *t16 = try_create<T>();
-  if (!t16)
+  T *t17 = try_create<T>();
+  if (!t17)
     return;
-  HasDefault HDb(t16->i);
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't16' dereferenced in the initialisation of 'HDb'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
+  HasDefault HDb(t17->i);
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDb' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2c() {
-  T *t17 = try_create<T>();
-  if (!t17)
+  T *t18 = try_create<T>();
+  if (!t18)
     return;
-  HasDefault HDc{t17->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDc'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
+  HasDefault HDc{t18->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDc' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2d() {
-  T *t18 = try_create<T>();
-  if (!t18)
+  T *t19 = try_create<T>();
+  if (!t19)
     return;
-  TrivialAggregate ta{t18->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
+  TrivialAggregate ta{t19->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_3a() {
-  T *t19 = try_create<T>();
-  if (!t19)
+  T *t20 = try_create<T>();
+  if (!t20)
     return;
-  HasDefault HD3a(t19->i, 1);
+  HasDefault HD3a(t20->i, 1);
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }
 
 void single_checked_ctor_initialising_dereference_3b() {
-  T *t19 = try_create<T>();
-  if (!t19)
+  T *t20 = try_create<T>();
+  if (!t20)
     return;
-  HasDefault HD3b{t19->i, 1};
+  HasDefault HD3b{t20->i, 1};
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }

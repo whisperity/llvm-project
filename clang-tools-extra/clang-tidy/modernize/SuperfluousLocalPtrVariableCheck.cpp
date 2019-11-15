@@ -215,6 +215,9 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                             << "\n\tusages for pointer (guards): "
                             << PointerUsages.size() << '\n';);
 
+    if (PointeeUsages.empty())
+      continue;
+
     if (PointeeUsages.size() > 1) {
       LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
                  llvm::dbgs()
