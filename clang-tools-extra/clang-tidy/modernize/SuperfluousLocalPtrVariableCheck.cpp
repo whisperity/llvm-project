@@ -309,8 +309,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                DiagnosticIDs::Note)
               << InitedVar;
         } else if (LOpts.CPlusPlus17) {
-          // FIXME: This should be a rewrite.
-          diag(PtrVar->getLocation(), "post-cpp17", DiagnosticIDs::Error);
+          // FIXME: Write the implementation here.
         }
       }
     } else if (isa<PtrDereference>(TheUsage) || isa<PtrArgument>(TheUsage)) {

@@ -169,9 +169,9 @@ void single_checked_initialising_dereference() {
     return;
   int i = t14->i;
   i += 1;
-  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't13' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't13' dereferenced in the initialisation of 'i'
-  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't13' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
+  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer, the branch, and the assignment to 'i' into an inner scope (between {brackets})
 }
 

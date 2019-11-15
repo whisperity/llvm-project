@@ -185,7 +185,10 @@ void single_checked_initialising_dereference() {
     return;
   int i = t14->i;
   i += 1;
-  // FIXME: Test for suggestion on >= C++17 mode.
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
+  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
+  // FIXME: Suggest C++ >= 17-like alternative
 }
 
 void single_checked_ctor_initialising_dereference_1() {
@@ -202,6 +205,9 @@ void single_checked_ctor_initialising_dereference_2a() {
   if (!t16)
     return;
   HasDefault HDa = t16->i;
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
   // FIXME: Suggest C++ >= 17-like alternative
 }
 
@@ -210,6 +216,9 @@ void single_checked_ctor_initialising_dereference_2b() {
   if (!t17)
     return;
   HasDefault HDb(t17->i);
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
   // FIXME: Suggest C++ >= 17-like alternative
 }
 
@@ -218,6 +227,9 @@ void single_checked_ctor_initialising_dereference_2c() {
   if (!t18)
     return;
   HasDefault HDc{t18->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
   // FIXME: Suggest C++ >= 17-like alternative
 }
 
@@ -226,6 +238,9 @@ void single_checked_ctor_initialising_dereference_2d() {
   if (!t19)
     return;
   TrivialAggregate ta{t19->i};
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
   // FIXME: Suggest C++ >= 17-like alternative
 }
 
@@ -249,8 +264,11 @@ void single_checked_ctor_initialising_dereference_4() {
   T *t21 = try_create<T>();
   if (!t21)
     return;
-  HasUDComma HUDC = t21->i;
-
+  HasUDComma hudc = t21->i;
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't21' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:21: note: usage: 't21' dereferenced in the initialisation of 'hudc'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't21' is guarded by this branch, resulting in 'return'
+  // FIXME: Suggest C++ >= 17-like alternative
   // FIXME: The suggestion here has to include the "void()".
 }
 
