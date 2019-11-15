@@ -53,11 +53,19 @@ static const auto ConstructExprWithPtrDereference =
     ignoringElidableConstructorCall(
         cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereferenceM)));
 
-// FIXME: Match aggregate initialisation through initlists (TrivialAggregate in test/...pre17.cpp)
 static const auto VarInitFromPtrDereference =
-    varDecl(anyOf(hasInitializer(ignoringParenImpCasts(
-                      anyOf(PtrDereferenceM, ConstructExprWithPtrDereference))),
-                  hasDescendant(expr(ConstructExprWithPtrDereference))))
+    varDecl(
+        anyOf(
+            hasInitializer(ignoringParenImpCasts(anyOf(
+                PtrDereferenceM, // Directly initialise from dereference:
+                                 // int i = p->i
+                ConstructExprWithPtrDereference, // Assign-initialise through
+                                                 // ctor: T t = p->t;
+                initListExpr(hasDescendant(
+                    PtrDereferenceM))))), // Aggregate initialise: S s = {p->i};
+            hasDescendant(
+                expr(ConstructExprWithPtrDereference)))) // Initialise with ctor
+                                                         // call: T t(p->t);
         .bind(InitedVarId);
 
 static const auto FlowBreakingStmt =
@@ -102,6 +110,11 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   LLVM_DEBUG(llvm::dbgs()
                  << "Checking whether this record is default constructible:\n";
              RD->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+
+  if (RD->isAggregate()) {
+    LLVM_DEBUG(llvm::dbgs() << "is-aggregate\n");
+    return true;
+  }
 
   if (RD->hasDefaultConstructor()) {
     LLVM_DEBUG(llvm::dbgs() << "has-default-ctor\n");

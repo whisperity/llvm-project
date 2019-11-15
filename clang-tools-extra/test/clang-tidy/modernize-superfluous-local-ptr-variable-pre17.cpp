@@ -143,7 +143,6 @@ void single_checked_passing() {
   if (!t12)
     return;
   std::free(t12);
-
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
@@ -152,7 +151,6 @@ void single_checked_dereference() {
   if (!t12)
     return;
   std::free(t12->tp);
-
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
@@ -173,7 +171,6 @@ void single_checked_ctor_initialising_dereference_1() {
   if (!t14)
     return;
   ND NDv = t14->i;
-
   // NO-WARN: 'NoDefault' has no default ctor, so swapping the order of
   // initialisation won't work.
 }
@@ -211,31 +208,29 @@ void single_checked_ctor_initialising_dereference_2c() {
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDc' into an inner scope (between {brackets})
 }
 
-/*
 void single_checked_ctor_initialising_dereference_2d() {
   T *t18 = try_create<T>();
   if (!t18)
     return;
   TrivialAggregate ta{t18->i};
-  // NCHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // NCHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
-  // NCHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
-  // NCHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't18' dereferenced in the initialisation of 'ta'
+  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
 }
-*/
 
 void single_checked_ctor_initialising_dereference_3a() {
-  T *t18 = try_create<T>();
-  if (!t18)
+  T *t19 = try_create<T>();
+  if (!t19)
     return;
-  HasDefault HD3a(t18->i, 1);
+  HasDefault HD3a(t19->i, 1);
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }
 
 void single_checked_ctor_initialising_dereference_3b() {
-  T *t18 = try_create<T>();
-  if (!t18)
+  T *t19 = try_create<T>();
+  if (!t19)
     return;
-  HasDefault HD3b{t18->i, 1};
+  HasDefault HD3b{t19->i, 1};
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }
