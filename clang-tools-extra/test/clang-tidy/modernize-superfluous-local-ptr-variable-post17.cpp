@@ -169,14 +169,17 @@ void single_checked_dereference() {
   // NO-WARN: This example cannot be reasonably rewritten.
 }
 
+// FIXME: Multiple hints are generated for the user's consideration, but these
+//        cannot be properly tested because Tidy only applies the first...
+
 void single_checked_initialising_dereference() {
   T *t14 = try_create<T>();
-  // CHECK-FIXES: {{^  }}int i;{{$}}
+  // HINT: {{^  }}int i;{{$}}
   if (!t14)
-    // CHECK-FIXES: {{^  }}if (T *t14 = try_create<T>(); (!t14) || ((i = {t14->i}), void(), false)){{$}}
+    // HINT: {{^  }}if (T *t14 = try_create<T>(); (!t14) || ((i = {t14->i}), void(), false)){{$}}
     return;
   int i = t14->i;
-  // CHECK-FIXES: {{^  }};{{$}}
+  // HINT: {{^  }};{{$}}
   // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't14' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
@@ -197,12 +200,12 @@ void single_checked_ctor_initialising_dereference_1() {
 
 void single_checked_ctor_initialising_dereference_2a() {
   T *t16 = try_create<T>();
-  // CHECK-FIXES: {{^  }}HasDefault HDa;{{$}}
+  // HINT: {{^  }}HasDefault HDa;{{$}}
   if (!t16)
-    // CHECK-FIXES: {{^  }}if (T *t16 = try_create<T>(); (!t16) || ((HDa = {t16->i}), void(), false)){{$}}
+    // HINT: {{^  }}if (T *t16 = try_create<T>(); (!t16) || ((HDa = {t16->i}), void(), false)){{$}}
     return;
   HasDefault HDa = t16->i;
-  // CHECK-FIXES: {{^  }};{{$}}
+  // HINT: {{^  }};{{$}}
   // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't16' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
@@ -213,11 +216,11 @@ void single_checked_ctor_initialising_dereference_2a() {
 
 void single_checked_ctor_initialising_dereference_2b() {
   T *t17 = try_create<T>();
-  // CHECK-FIXES: {{^  }}HasDefault HDb;{{$}}
+  // HINT: {{^  }}HasDefault HDb;{{$}}
   if (!t17)
-    // CHECK-FIXES: {{^  }}if (T *t17 = try_create<T>(); (!t17) || ((HDb = {t17->i}), void(), false)){{$}}
+    // HINT: {{^  }}if (T *t17 = try_create<T>(); (!t17) || ((HDb = {t17->i}), void(), false)){{$}}
     return;
-  // CHECK-FIXES: {{^  }};{{$}}
+  // HINT: {{^  }};{{$}}
   HasDefault HDb(t17->i);
   // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
@@ -229,12 +232,12 @@ void single_checked_ctor_initialising_dereference_2b() {
 
 void single_checked_ctor_initialising_dereference_2c() {
   T *t18 = try_create<T>();
-  // CHECK-FIXES: {{^  }}HasDefault HDc;{{$}}
+  // HINT: {{^  }}HasDefault HDc;{{$}}
   if (!t18)
-    // CHECK-FIXES: {{^  }}if (T *t18 = try_create<T>(); (!t18) || ((HDc = {t18->i}), void(), false)){{$}}
+    // HINT: {{^  }}if (T *t18 = try_create<T>(); (!t18) || ((HDc = {t18->i}), void(), false)){{$}}
     return;
   HasDefault HDc{t18->i};
-  // CHECK-FIXES: {{^  }};{{$}}
+  // HINT: {{^  }};{{$}}
   // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
@@ -245,12 +248,12 @@ void single_checked_ctor_initialising_dereference_2c() {
 
 void single_checked_ctor_initialising_dereference_2d() {
   T *t19 = try_create<T>();
-  // CHECK-FIXES: {{^  }}TrivialAggregate ta;{{$}}
+  // HINT: {{^  }}TrivialAggregate ta;{{$}}
   if (!t19)
-    // CHECK-FIXES: {{^  }}if (T *t19 = try_create<T>(); (!t19) || ((ta = {t19->i}), void(), false)){{$}}
+    // HINT: {{^  }}if (T *t19 = try_create<T>(); (!t19) || ((ta = {t19->i}), void(), false)){{$}}
     return;
   TrivialAggregate ta{t19->i};
-  // CHECK-FIXES: {{^  }};{{$}}
+  // HINT: {{^  }};{{$}}
   // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't19' dereferenced in the initialisation of 'ta'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
