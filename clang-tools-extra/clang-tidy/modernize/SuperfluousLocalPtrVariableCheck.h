@@ -15,6 +15,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
+#include <memory>
+
 namespace clang {
 namespace tidy {
 namespace modernize {
@@ -214,6 +216,11 @@ private:
   void emitMainDiagnostic(const VarDecl *Ptr);
   void emitConsiderUsingInitCodeDiagnostic(const VarDecl *Ptr,
                                            const PtrUsage *Usage);
+  void emitGuardDiagnostic(const PtrGuard *Guard);
+  bool tryEmitPtrDerefInitGuardRewrite(const PtrDerefVarInit *Init,
+                                       const PtrGuard *Guard);
+  bool tryEmitReplacePointerWithDerefResult(const VarDecl *Ptr,
+                                            const PtrDerefVarInit *Init);
 
   UsageMap Usages;
 };

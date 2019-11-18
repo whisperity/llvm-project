@@ -41,16 +41,6 @@ public:
   NoDefault(int i) : m(i) {}
 };
 
-class HasUDComma {
-public:
-  int m;
-
-  HasUDComma() : m(0) {}
-  HasUDComma(int i) : m(i) {}
-
-  bool operator,(bool b) { return !b; }
-};
-
 // Definitely and maybe allocates and constructs a T... just used to make the
 // tests better organised. Do not *ever* try to check *how* exactly the ptr
 // var was created...
@@ -181,14 +171,19 @@ void single_checked_dereference() {
 
 void single_checked_initialising_dereference() {
   T *t14 = try_create<T>();
+  // CHECK-FIXES: {{^  }}int i;{{$}}
   if (!t14)
+    // CHECK-FIXES: {{^  }}if (T *t14 = try_create<T>(); (!t14) || ((i = {t14->i}), void(), false)){{$}}
     return;
   int i = t14->i;
+  // CHECK-FIXES: {{^  }};{{$}}
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't14' dereferenced in the initialisation of 'i'
+  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'i' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: consider scoping the pointer 't14' into the branch, and assign to 'i' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: after the changes, the definition for 'i' here is no longer needed
   i += 1;
-  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
-  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
 }
 
 void single_checked_ctor_initialising_dereference_1() {
@@ -202,46 +197,66 @@ void single_checked_ctor_initialising_dereference_1() {
 
 void single_checked_ctor_initialising_dereference_2a() {
   T *t16 = try_create<T>();
+  // CHECK-FIXES: {{^  }}HasDefault HDa;{{$}}
   if (!t16)
+    // CHECK-FIXES: {{^  }}if (T *t16 = try_create<T>(); (!t16) || ((HDa = {t16->i}), void(), false)){{$}}
     return;
   HasDefault HDa = t16->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
+  // CHECK-FIXES: {{^  }};{{$}}
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't16' dereferenced in the initialisation of 'HDa'
+  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDa' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: consider scoping the pointer 't16' into the branch, and assign to 'HDa' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: after the changes, the definition for 'HDa' here is no longer needed
 }
 
 void single_checked_ctor_initialising_dereference_2b() {
   T *t17 = try_create<T>();
+  // CHECK-FIXES: {{^  }}HasDefault HDb;{{$}}
   if (!t17)
+    // CHECK-FIXES: {{^  }}if (T *t17 = try_create<T>(); (!t17) || ((HDb = {t17->i}), void(), false)){{$}}
     return;
+  // CHECK-FIXES: {{^  }};{{$}}
   HasDefault HDb(t17->i);
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
+  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDb' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: consider scoping the pointer 't17' into the branch, and assign to 'HDb' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: after the changes, the definition for 'HDb' here is no longer needed
 }
 
 void single_checked_ctor_initialising_dereference_2c() {
   T *t18 = try_create<T>();
+  // CHECK-FIXES: {{^  }}HasDefault HDc;{{$}}
   if (!t18)
+    // CHECK-FIXES: {{^  }}if (T *t18 = try_create<T>(); (!t18) || ((HDc = {t18->i}), void(), false)){{$}}
     return;
   HasDefault HDc{t18->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
+  // CHECK-FIXES: {{^  }};{{$}}
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
+  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDc' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: consider scoping the pointer 't18' into the branch, and assign to 'HDc' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: after the changes, the definition for 'HDc' here is no longer needed
 }
 
 void single_checked_ctor_initialising_dereference_2d() {
   T *t19 = try_create<T>();
+  // CHECK-FIXES: {{^  }}TrivialAggregate ta;{{$}}
   if (!t19)
+    // CHECK-FIXES: {{^  }}if (T *t19 = try_create<T>(); (!t19) || ((ta = {t19->i}), void(), false)){{$}}
     return;
   TrivialAggregate ta{t19->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
+  // CHECK-FIXES: {{^  }};{{$}}
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't19' dereferenced in the initialisation of 'ta'
+  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'ta' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: consider scoping the pointer 't19' into the branch, and assign to 'HDc' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: after the changes, the definition for 'ta' here is no longer needed
 }
 
 void single_checked_ctor_initialising_dereference_3a() {
@@ -258,27 +273,4 @@ void single_checked_ctor_initialising_dereference_3b() {
     return;
   HasDefault HD3b{t20->i, 1};
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
-}
-
-void single_checked_ctor_initialising_dereference_4() {
-  T *t21 = try_create<T>();
-  if (!t21)
-    return;
-  HasUDComma hudc = t21->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't21' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
-  // CHECK-MESSAGES: :[[@LINE-2]]:21: note: usage: 't21' dereferenced in the initialisation of 'hudc'
-  // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't21' is guarded by this branch, resulting in 'return'
-  // FIXME: Suggest C++ >= 17-like alternative
-  // FIXME: The suggestion here has to include the "void()".
-}
-
-int SCID_FIX_17() {
-  int i;
-  if (const T *p = try_create<T>(); !(p && ((i = p->i), void(), true)))
-    // clang-format off
-                                                     // ^~~~~~~
-                                                     // only suggest if decltype(i) has operator,() !!!
-    // clang-format on
-    return -1;
-  return i + 1;
 }

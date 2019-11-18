@@ -172,7 +172,7 @@ void single_checked_initialising_dereference() {
   // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer, the branch, and the assignment to 'i' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer 't14', the branch, and the assignment of 'i' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_1() {
@@ -192,7 +192,7 @@ void single_checked_ctor_initialising_dereference_2a() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDa' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't16', the branch, and the assignment of 'HDa' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2b() {
@@ -203,7 +203,7 @@ void single_checked_ctor_initialising_dereference_2b() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDb' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't17', the branch, and the assignment of 'HDb' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2c() {
@@ -214,7 +214,7 @@ void single_checked_ctor_initialising_dereference_2c() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'HDc' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't18', the branch, and the assignment of 'HDc' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2d() {
@@ -225,7 +225,7 @@ void single_checked_ctor_initialising_dereference_2d() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
   // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer, the branch, and the assignment to 'ta' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't19', the branch, and the assignment of 'ta' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_3a() {

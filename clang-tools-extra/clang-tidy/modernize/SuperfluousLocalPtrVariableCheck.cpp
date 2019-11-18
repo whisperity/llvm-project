@@ -87,19 +87,26 @@ static const auto PtrGuardM =
            unless(hasElse(stmt())))
         .bind(PtrGuardId);
 
+/// Returns the full code (end inclusive on the whole token) in the input buffer
+/// between the given two source locations.
+static StringRef getCode(SourceLocation B, SourceLocation E,
+                         const ASTContext &Ctx) {
+  const SourceManager &SM = Ctx.getSourceManager();
+  const LangOptions &LOpts = Ctx.getLangOpts();
+  return Lexer::getSourceText(
+      CharSourceRange::getCharRange(
+          B, Lexer::getLocForEndOfToken(E, 0, SM, LOpts)),
+      SM, LOpts);
+}
+
 /// Get the code text that initialises a variable.
 /// If the initialisation happens entirely through a macro, returns empty, or
 /// empty parens (i.e. "()"), depending on OuterParen's value.
 static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
                                       bool OuterParen = true) {
   return (Twine(OuterParen ? "(" : "") +
-          Lexer::getSourceText(
-              CharSourceRange::getCharRange(
-                  Var->getInit()->getBeginLoc(),
-                  Lexer::getLocForEndOfToken(Var->getInit()->getEndLoc(), 0,
-                                             Ctx.getSourceManager(),
-                                             Ctx.getLangOpts())),
-              Ctx.getSourceManager(), Ctx.getLangOpts()) +
+          getCode(Var->getInit()->getBeginLoc(), Var->getInit()->getEndLoc(),
+                  Ctx) +
           Twine(OuterParen ? ")" : ""))
       .str();
 }
@@ -265,37 +272,9 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
       if (!HasPointerAnnotatingUsages)
         emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
       else {
-        if (const auto *Guard = dyn_cast<PtrGuard>(PointerUsages.front())) {
-          std::string EarlyFlowType;
-          const Stmt *FlowStmt = Guard->getFlowStmt();
-          if (isa<ReturnStmt>(FlowStmt))
-            EarlyFlowType = "return";
-          else if (isa<ContinueStmt>(FlowStmt))
-            EarlyFlowType = "continue";
-          else if (isa<BreakStmt>(FlowStmt))
-            EarlyFlowType = "break";
-          else if (isa<GotoStmt>(FlowStmt))
-            EarlyFlowType = "goto";
-          else if (isa<CXXThrowExpr>(FlowStmt))
-            EarlyFlowType = "throw";
-          else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
-            const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
-            assert(Callee && "CallExpr should represent a function call");
-            if (Callee->isNoReturn())
-              EarlyFlowType = "program termination";
-          }
-
-          const char *GuardDiagMsg;
-          if (EarlyFlowType.empty())
-            GuardDiagMsg = "the value of %0 is guarded by this branch";
-          else
-            GuardDiagMsg =
-                "the value of %0 is guarded by this branch, resulting in '%1'";
-
-          diag(Guard->getGuardStmt()->getIfLoc(), GuardDiagMsg,
-               DiagnosticIDs::Note)
-              << PtrVar << EarlyFlowType;
-        }
+        const auto *Guard = dyn_cast<PtrGuard>(PointerUsages.front());
+        assert(Guard && "Currently the only Pointer-usage kind is a PtrGuard");
+        emitGuardDiagnostic(Guard);
 
         if (!LOpts.CPlusPlus || (LOpts.CPlusPlus && !LOpts.CPlusPlus17)) {
           // Pre-C++17 this case cannot be reasonably rewritten, as the
@@ -303,13 +282,31 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           // for an allocation, would immediately cause a memory leak.
           // FIXME: Perhaps don't warn for this all the time and hide it behind
           //        an option?
-          diag(PtrVar->getLocation(),
-               "consider putting the pointer, the branch, and the assignment "
-               "to %0 into an inner scope (between {brackets})",
-               DiagnosticIDs::Note)
-              << InitedVar;
+          diag(
+              PtrVar->getLocation(),
+              "consider putting the pointer %0, the branch, and the assignment "
+              "of %1 into an inner scope (between {brackets})",
+              DiagnosticIDs::Note)
+              << PtrVar << InitedVar;
         } else if (LOpts.CPlusPlus17) {
-          // FIXME: Write the implementation here.
+          bool FixItSuccess =
+              tryEmitReplacePointerWithDerefResult(PtrVar, DerefForVarInit);
+          FixItSuccess &=
+              tryEmitPtrDerefInitGuardRewrite(DerefForVarInit, Guard);
+
+          const char *InitedVarNoNeedMsg;
+          if (FixItSuccess)
+            InitedVarNoNeedMsg = "after the changes, the definition for %0 "
+                                 "here is no longer needed";
+          else
+            InitedVarNoNeedMsg = "after the changes, the definition for %0 "
+                                 "here should no longer be needed";
+
+          auto Diag = diag(InitedVar->getLocation(), InitedVarNoNeedMsg,
+                           DiagnosticIDs::Note)
+                      << InitedVar;
+          if (FixItSuccess)
+            Diag << FixItHint::CreateRemoval(InitedVar->getSourceRange());
         }
       }
     } else if (isa<PtrDereference>(TheUsage) || isa<PtrArgument>(TheUsage)) {
@@ -377,6 +374,167 @@ void SuperfluousLocalPtrVariableCheck::emitConsiderUsingInitCodeDiagnostic(
   if (!PtrVarInitExprCode.empty())
     ConsiderNote << FixItHint::CreateReplacement(
         Usage->getUsageExpr()->getSourceRange(), PtrVarInitExprCode);
+}
+
+void SuperfluousLocalPtrVariableCheck::emitGuardDiagnostic(
+    const PtrGuard *Guard) {
+  std::string EarlyFlowType;
+  const Stmt *FlowStmt = Guard->getFlowStmt();
+  if (isa<ReturnStmt>(FlowStmt))
+    EarlyFlowType = "return";
+  else if (isa<ContinueStmt>(FlowStmt))
+    EarlyFlowType = "continue";
+  else if (isa<BreakStmt>(FlowStmt))
+    EarlyFlowType = "break";
+  else if (isa<GotoStmt>(FlowStmt))
+    EarlyFlowType = "goto";
+  else if (isa<CXXThrowExpr>(FlowStmt))
+    EarlyFlowType = "throw";
+  else if (const auto *CE = dyn_cast<CallExpr>(FlowStmt)) {
+    const auto *Callee = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+    assert(Callee && "CallExpr should represent a function call");
+    if (Callee->isNoReturn())
+      EarlyFlowType = "program termination";
+  }
+
+  const char *GuardDiagMsg;
+  if (EarlyFlowType.empty())
+    GuardDiagMsg = "the value of %0 is guarded by this branch";
+  else
+    GuardDiagMsg =
+        "the value of %0 is guarded by this branch, resulting in '%1'";
+
+  diag(Guard->getGuardStmt()->getIfLoc(), GuardDiagMsg, DiagnosticIDs::Note)
+      << Guard->getUsageExpr()->getDecl() << EarlyFlowType;
+}
+
+/// Create a replacement on the guard statement. We wish to transform:
+///     T *p = ...;
+///     if (!p) return;    /* guard ::= (!p) */
+///     int i = p->foo();
+/// into
+///     int i;
+///     if (T *p = ...; (!p) || ((i = {p->foo()}), void(), false)) return;
+/// which results in doing the "return" if the guard matches
+/// (i.e. p is null), and if the guard does not match, does the
+/// assignment, but doesn't "flow" (return) even if the result
+/// of the assignment evaluates to false.
+///
+/// This function potentially creates the FixItHint diagnostic for the rewrite
+/// of the if().
+bool SuperfluousLocalPtrVariableCheck::tryEmitPtrDerefInitGuardRewrite(
+    const PtrDerefVarInit *Init, const PtrGuard *Guard) {
+  const auto *Ptr = cast<VarDecl>(Guard->getUsageExpr()->getDecl());
+  const VarDecl *InitedVar = Init->getInitialisedVar();
+  const ASTContext &Ctx = Ptr->getASTContext();
+
+  bool CouldCreateFixIt = true;
+
+  const StringRef OriginalPtrDeclCode =
+      getCode(Ptr->getBeginLoc(), Ptr->getEndLoc(), Ctx);
+  if (OriginalPtrDeclCode.empty())
+    CouldCreateFixIt = false;
+
+  const StringRef GuardStmtCode =
+      getCode(Guard->getGuardStmt()->getCond()->getBeginLoc(),
+              Guard->getGuardStmt()->getCond()->getEndLoc(), Ctx);
+  if (GuardStmtCode.empty())
+    CouldCreateFixIt = false;
+
+  const std::string InitedVarName = InitedVar->getName().str();
+  std::string VarInitCode = getVarInitExprCode(Init->getInitialisedVar(), Ctx,
+                                               /* OuterParen =*/false);
+  if (VarInitCode == "()")
+    CouldCreateFixIt = false;
+  else {
+    LLVM_DEBUG(llvm::dbgs() << "Original VarInitCode: " << VarInitCode << '\n');
+    // Cut the name of the initialized variable at the beginning, if any.
+
+    LLVM_DEBUG(llvm::dbgs() << "InitedVarName: " << InitedVarName << '\n');
+    std::size_t VarNameInInitCodePos = VarInitCode.find(InitedVarName);
+    LLVM_DEBUG(llvm::dbgs() << "find(" << VarInitCode << ", " << InitedVarName
+                            << ") = " << VarNameInInitCodePos << '\n');
+    if (VarNameInInitCodePos == 0)
+      VarInitCode = VarInitCode.substr(InitedVarName.length());
+    LLVM_DEBUG(llvm::dbgs()
+               << "VarInitCode after cut of VarName: " << VarInitCode << '\n');
+
+    // Cut the original initialiser statement's parens or brackets.
+    if (*VarInitCode.begin() == '(' || *VarInitCode.begin() == '{')
+      VarInitCode = VarInitCode.substr(1, VarInitCode.length() - 2);
+    LLVM_DEBUG(llvm::dbgs()
+               << "VarInitCode after cut of (, {: " << VarInitCode << '\n');
+  }
+
+  std::string RewrittenGuardCondition =
+      (Twine(OriginalPtrDeclCode) + "; " + Twine('(') + GuardStmtCode +
+       Twine(')') + " || (" + Twine('(') + InitedVarName + " = {" +
+       VarInitCode + "})" + ", void(), false" + Twine(')'))
+          .str();
+
+  auto Diag =
+      diag(Guard->getGuardStmt()->getIfLoc(),
+           "consider scoping the pointer %0 into the branch, and assign to %1 "
+           "during the guarding condition",
+           DiagnosticIDs::Note)
+      << Ptr << InitedVar;
+  if (CouldCreateFixIt)
+    Diag << FixItHint::CreateReplacement(
+        Guard->getGuardStmt()->getCond()->getSourceRange(),
+        RewrittenGuardCondition);
+
+  return CouldCreateFixIt;
+}
+
+/// Create a replacement on the pointer variable to the result type.
+/// We wish to transform:
+///     T *p;
+///     int i = p->foo();
+/// into
+///     int i;
+/// The potential guard and dereference is rewritten by other functions.
+bool SuperfluousLocalPtrVariableCheck::tryEmitReplacePointerWithDerefResult(
+    const VarDecl *Ptr, const PtrDerefVarInit *Init) {
+  const VarDecl *InitedVar = Init->getInitialisedVar();
+
+  bool CouldCreateFixIt = true;
+
+  std::string InitedVarDeclWithoutInitCode = Lexer::getSourceText(
+      CharSourceRange::getCharRange(InitedVar->getOuterLocStart(),
+                                    InitedVar->getInit()->getBeginLoc()),
+      InitedVar->getASTContext().getSourceManager(),
+      InitedVar->getASTContext().getLangOpts());
+  // The string might be "T t =" or "T t = " if the original initialising
+  // expression was with =, or "T " (if a '(' or '{' initialisation was used).
+
+  if (InitedVarDeclWithoutInitCode.empty())
+    CouldCreateFixIt = false;
+  else {
+    // Try to cut the ending "= " part off.
+    std::size_t EqSignPos = InitedVarDeclWithoutInitCode.rfind("= ");
+    if (EqSignPos == std::string::npos)
+      EqSignPos = InitedVarDeclWithoutInitCode.rfind('=');
+    if (EqSignPos != std::string::npos &&
+        EqSignPos >= InitedVarDeclWithoutInitCode.length() - 3)
+      InitedVarDeclWithoutInitCode =
+          InitedVarDeclWithoutInitCode.substr(0, EqSignPos);
+
+    const std::string VarName = InitedVar->getName();
+    if (InitedVarDeclWithoutInitCode.find(VarName) == std::string::npos) {
+      InitedVarDeclWithoutInitCode.push_back(' ');
+      InitedVarDeclWithoutInitCode.append(VarName);
+    }
+  }
+
+  auto Diag = diag(Ptr->getLocation(),
+                   "consider declaring the variable %0 (for the dereference's "
+                   "result) in the \"outer\" scope",
+                   DiagnosticIDs::Note)
+              << InitedVar;
+  if (CouldCreateFixIt)
+    Diag << FixItHint::CreateReplacement(Ptr->getSourceRange(),
+                                         InitedVarDeclWithoutInitCode);
+  return Diag;
 }
 
 bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
