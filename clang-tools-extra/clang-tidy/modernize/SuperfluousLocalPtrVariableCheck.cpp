@@ -104,9 +104,12 @@ static StringRef getCode(SourceLocation B, SourceLocation E,
 /// empty parens (i.e. "()"), depending on OuterParen's value.
 static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
                                       bool OuterParen = true) {
+  const Expr *InitE = Var->getInit();
+  if (!InitE)
+    return OuterParen ? "()" : "";
+
   return (Twine(OuterParen ? "(" : "") +
-          getCode(Var->getInit()->getBeginLoc(), Var->getInit()->getEndLoc(),
-                  Ctx) +
+          getCode(InitE->getBeginLoc(), InitE->getEndLoc(), Ctx) +
           Twine(OuterParen ? ")" : ""))
       .str();
 }
@@ -175,13 +178,17 @@ void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
                      this);
 }
 
+#define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
+
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
-    LLVM_DEBUG(GuardIf->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
     const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
     const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
     const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
+    if (ASTNODE_FROM_MACRO(GuardIf) || ASTNODE_FROM_MACRO(FlowStmt) ||
+        ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+      return;
     Usages[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
     return;
   }
@@ -192,6 +199,9 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
         Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
     const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
+    if (ASTNODE_FROM_MACRO(VarInit) || ASTNODE_FROM_MACRO(DerefExpr) ||
+        ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+      return;
     Usages[RefPtrVar].addUsage(
         new PtrDerefVarInit{DRefExpr, DerefExpr, VarInit});
     return;
@@ -202,16 +212,23 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
     const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
     const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
 
+    if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
+        ASTNODE_FROM_MACRO(DerefExpr))
+      return;
     Usages[RefPtrVar].addUsage(new PtrDereference{PtrDRE, DerefExpr});
     return;
   }
 
   if (const auto *PtrDRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
     const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
+    if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar))
+      return;
     Usages[RefPtrVar].addUsage(new PtrArgument{PtrDRE});
     return;
   }
 }
+
+#undef ASTNODE_FROM_MACRO
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
   LLVM_DEBUG(llvm::dbgs() << "\n\n================== BEGIN "
@@ -243,6 +260,18 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     // guard statement on the pointer's value.
     bool HasPointerAnnotatingUsages = !PointerUsages.empty();
 
+    // Retrieve the code text the used pointer is created with.
+    std::string PtrVarInitExprCode = getVarInitExprCode(
+        PtrVar, PtrVar->getASTContext(), /* OuterParen =*/true);
+    LLVM_DEBUG(
+        llvm::dbgs()
+            << "Generated initialisation expression-statement code for\n";
+        PtrVar->dump(llvm::dbgs());
+        llvm::dbgs() << "\n as: " << PtrVarInitExprCode << '\n';);
+    if (PtrVarInitExprCode == "()")
+      // If we don't know how the pointer variable is initialised, bail out.
+      continue;
+
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
       const VarDecl *InitedVar = DerefForVarInit->getInitialisedVar();
 
@@ -267,7 +296,8 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
           << PtrVar << InitedVar;
 
       if (!HasPointerAnnotatingUsages)
-        emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
+        emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage,
+                                            PtrVarInitExprCode);
       else {
         const auto *Guard = dyn_cast<PtrGuard>(PointerUsages.front());
         assert(Guard && "Currently the only Pointer-usage kind is a PtrGuard");
@@ -323,7 +353,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
       diag(TheUseExpr->getLocation(), UsageDescription, DiagnosticIDs::Note)
           << PtrVar;
 
-      emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
+      emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage, PtrVarInitExprCode);
     }
   }
   LLVM_DEBUG(llvm::dbgs() << "\n\n==================  END  "
@@ -353,26 +383,12 @@ void SuperfluousLocalPtrVariableCheck::emitMainDiagnostic(const VarDecl *Ptr) {
 /// variable suggesting the user writes the code text that the pointer was
 /// initialised with to the point of use instead.
 void SuperfluousLocalPtrVariableCheck::emitConsiderUsingInitCodeDiagnostic(
-    const VarDecl *Ptr, const PtrUsage *Usage) {
-  std::string PtrVarInitExprCode =
-      getVarInitExprCode(Ptr, Ptr->getASTContext(), /* OuterParen =*/true);
-  LLVM_DEBUG(llvm::dbgs()
-                 << "Generated initialisation expression-statement code for\n";
-             Ptr->dump(llvm::dbgs());
-             llvm::dbgs() << "\n as: " << PtrVarInitExprCode << '\n';);
-  if (PtrVarInitExprCode == "()")
-    // If fetching the code text for the initialisation of the used var,
-    // make sure no "hint" is created for the note.
-    PtrVarInitExprCode.clear();
-
-  auto ConsiderNote = diag(Usage->getUsageExpr()->getLocation(),
-                           "consider using the code that initialises %0 here",
-                           DiagnosticIDs::Note)
-                      << Ptr;
-
-  if (!PtrVarInitExprCode.empty())
-    ConsiderNote << FixItHint::CreateReplacement(
-        Usage->getUsageExpr()->getSourceRange(), PtrVarInitExprCode);
+    const VarDecl *Ptr, const PtrUsage *Usage, const std::string &InitCode) {
+  diag(Usage->getUsageExpr()->getLocation(),
+       "consider using the code that initialises %0 here", DiagnosticIDs::Note)
+      << Ptr
+      << FixItHint::CreateReplacement(Usage->getUsageExpr()->getSourceRange(),
+                                      InitCode);
 }
 
 void SuperfluousLocalPtrVariableCheck::emitGuardDiagnostic(

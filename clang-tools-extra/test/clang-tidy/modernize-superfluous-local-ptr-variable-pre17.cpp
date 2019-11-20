@@ -243,3 +243,31 @@ void single_checked_ctor_initialising_dereference_3b() {
   HasDefault HD3b{t20->i, 1};
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }
+
+#define PTR_DEREF(alloc) \
+  T *ptr = alloc;        \
+  (void)ptr->i;
+
+void test_macro() {
+  PTR_DEREF(create<T>());
+  // NO-WARN: 'ptr' comes from a macro.
+}
+
+#undef PTR_DEREF
+
+const char *test_get_value() {
+  const char *Str = "Hello Local!";
+  return Str;
+  // CHECK-MESSAGES: :[[@LINE-2]]:15: warning: local pointer variable 'Str' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:10: note: usage: 'Str' used in an expression
+  // CHECK-MESSAGES: :[[@LINE-3]]:10: note: consider using the code that initialises 'Str' here
+}
+
+struct HasStaticMember {
+  const char *getMember() { return StrM; /* Usage point. */ }
+  // NO-WARN: The declaration referred by the usage point does not have an initialiser.
+private:
+  static const char *StrM; /* Referenced VarDecl. */
+};
+
+const char *HasStaticMember::StrM = "Hello Member!";

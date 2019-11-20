@@ -210,7 +210,8 @@ public:
 private:
   void emitMainDiagnostic(const VarDecl *Ptr);
   void emitConsiderUsingInitCodeDiagnostic(const VarDecl *Ptr,
-                                           const PtrUsage *Usage);
+                                           const PtrUsage *Usage,
+                                           const std::string &InitCode);
   void emitGuardDiagnostic(const PtrGuard *Guard);
   bool tryEmitPtrDerefInitGuardRewrite(const PtrDerefVarInit *Init,
                                        const PtrGuard *Guard);
