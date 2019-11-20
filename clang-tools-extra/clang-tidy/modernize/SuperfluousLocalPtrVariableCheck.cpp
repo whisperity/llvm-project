@@ -40,12 +40,12 @@ static const auto PointerLocalVarDecl =
 /// Matches every usage of a local pointer variable.
 static const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl));
 
-static const StatementMatcher PtrDereferenceM = anyOf(
+static const auto PtrDereferenceM = stmt(anyOf(
     memberExpr(isArrow(), hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId),
     unaryOperator(hasOperatorName("*"),
                   hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
-        .bind(DerefUsageExprId));
+        .bind(DerefUsageExprId)));
 
 /// Matches construction expressions which "trivially" initialise something from
 /// a pointer.
@@ -163,10 +163,16 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
 
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
   // FIXME: Match pointers with UsedPtrId iff they are passed as an argument!
-  Finder->addMatcher(PtrVarUsage.bind(UsedPtrId), this);
-  Finder->addMatcher(PtrDereferenceM, this);
-  Finder->addMatcher(VarInitFromPtrDereference, this);
-  Finder->addMatcher(PtrGuardM, this);
+  Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
+                                 PtrVarUsage.bind(UsedPtrId)),
+                     this);
+  Finder->addMatcher(stmt(unless(isExpansionInSystemHeader()), PtrDereferenceM),
+                     this);
+  Finder->addMatcher(
+      varDecl(unless(isExpansionInSystemHeader()), VarInitFromPtrDereference),
+      this);
+  Finder->addMatcher(ifStmt(unless(isExpansionInSystemHeader()), PtrGuardM),
+                     this);
 }
 
 void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
@@ -208,6 +214,8 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 }
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
+  LLVM_DEBUG(llvm::dbgs() << "\n\n================== BEGIN "
+                             "onEndOfTranslationUnit ==================\n\n");
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
@@ -222,23 +230,12 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
                             << "\n\tusages for pointer (guards): "
                             << PointerUsages.size() << '\n';);
 
-    if (PointeeUsages.empty())
+    if (PointeeUsages.size() != 1)
       continue;
-
-    if (PointeeUsages.size() > 1) {
-      LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
-                 llvm::dbgs()
-                 << "\n has multiple (non-annotation) usages -- ignoring!\n";);
-      continue;
-    }
-    if (PointerUsages.size() > 1) {
+    if (PointerUsages.size() > 1)
       // Currently, "Pointer(-only) usages" are if() guards, from which if there
       // multiple, no automatic rewriting seems sensible enough.
-      LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
-                 llvm::dbgs()
-                 << "\n has multiple (annotation) usages -- ignoring!\n";);
       continue;
-    }
 
     const PtrUsage *TheUsage = PointeeUsages.front();
     const auto *TheUseExpr = TheUsage->getUsageExpr();
@@ -329,6 +326,8 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
       emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage);
     }
   }
+  LLVM_DEBUG(llvm::dbgs() << "\n\n==================  END  "
+                             "onEndOfTranslationUnit ==================\n\n");
 }
 
 /// Helper function that emits the main "local ptr variable may be superfluous"
@@ -545,47 +544,22 @@ bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
       llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr() << '\n';
       UsageInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
 
-  for (const PtrUsage *DUI : CollectedUses)
-    if (DUI == UsageInfo || DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
-      LLVM_DEBUG(llvm::dbgs() << "Adding usage " << DUI->getUsageExpr()
-                              << " but it has already been found!\n";);
+  for (const PtrUsage *DUI : CollectedUses) {
+    if (DUI == UsageInfo) {
+      LLVM_DEBUG(llvm::dbgs() << "Adding usage " << UsageInfo
+                              << " but it has already been added!\n";);
       return false;
     }
-
-  CollectedUses.push_back(UsageInfo);
-  return true;
-}
-
-bool UsageCollection::replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo) {
-  assert(OldInfo && NewInfo && "provide valid UsageInfo instances");
-  assert(OldInfo != NewInfo && "replacement of usage info with same instance");
-
-  LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
-                          << " with " << NewInfo->getUsageExpr() << '\n';
-             OldInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';
-             NewInfo->getUsageExpr()->dump(llvm::dbgs());
-             llvm::dbgs() << '\n';);
-
-  size_t OldInfoIdx = 0;
-  bool OldInfoFound = false;
-  for (size_t Idx = 0; Idx < CollectedUses.size(); ++Idx) {
-    if (CollectedUses[Idx] == NewInfo ||
-        CollectedUses[Idx]->getUsageExpr() == NewInfo->getUsageExpr()) {
-      LLVM_DEBUG(llvm::dbgs() << "Replacing usage " << OldInfo->getUsageExpr()
-                              << " with " << NewInfo->getUsageExpr()
-                              << " but it is already added!\n";);
+    if (DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
+      LLVM_DEBUG(llvm::dbgs()
+                     << "Adding usage referring " << DUI->getUsageExpr()
+                     << " but a similar has already been found!\n";);
+      delete UsageInfo;
       return false;
-    }
-
-    if (CollectedUses[Idx] == OldInfo) {
-      OldInfoFound = true;
-      OldInfoIdx = Idx;
     }
   }
-  assert(OldInfoFound && "replacement of usage that was not added before");
 
-  CollectedUses[OldInfoIdx] = NewInfo;
-  delete OldInfo;
+  CollectedUses.push_back(UsageInfo);
   return true;
 }
 
@@ -595,8 +569,33 @@ UsageCollection::UseVector UsageCollection::getUsages() const {
       CollectedUses, [](PtrUsage *UI) { return isa<PtrUsageTypes>(UI); })};
 }
 
+UsageCollection::UsageCollection(UsageCollection &&UC) {
+  LLVM_DEBUG(llvm::dbgs() << "-------> MOVE CTOR UsageCollection <-------\n");
+  CollectedUses.insert(CollectedUses.end(), UC.CollectedUses.begin(),
+                       UC.CollectedUses.end());
+  UC.CollectedUses.clear();
+}
+
+UsageCollection &UsageCollection::operator=(UsageCollection &&UC) {
+  LLVM_DEBUG(llvm::dbgs() << "-------> MOVE  ASG UsageCollection <-------\n");
+  if (&UC == this)
+    return *this;
+
+  CollectedUses.insert(CollectedUses.end(), UC.CollectedUses.begin(),
+                       UC.CollectedUses.end());
+  UC.CollectedUses.clear();
+  return *this;
+}
+
 UsageCollection::~UsageCollection() {
-  llvm::for_each(CollectedUses, [](PtrUsage *UI) { delete UI; });
+  LLVM_DEBUG(llvm::dbgs() << "\n\n================== BEGIN ~UsageCollection "
+                             "==================\n\n");
+  llvm::for_each(CollectedUses, [](PtrUsage *UI) {
+    LLVM_DEBUG(llvm::dbgs() << "Destroying PtrUsage " << UI << '\n');
+    delete UI;
+  });
+  LLVM_DEBUG(llvm::dbgs() << "\n\n==================  END  ~UsageCollection "
+                             "==================\n\n");
 }
 
 } // namespace modernize

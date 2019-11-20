@@ -165,23 +165,18 @@ class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
 
+  UsageCollection() = default;
+  UsageCollection(UsageCollection &&UC);
+  UsageCollection &operator=(UsageCollection &&UC);
+
   ~UsageCollection();
 
   /// Adds the given usage info to the list of usages collected by the instance.
-  /// \returns true if an insertion took place, false otherwise (UsageInfo is
-  /// already added).
-  /// \note Ownership of UsageInfo is transferred to the collection!
+  /// \returns true if an insertion took place, false otherwise (a reference
+  /// position using the same DeclRefExpr as UsageInfo is already added).
+  /// \note Ownership of UsageInfo is transferred to the function, and the
+  /// collection! If the element could not be added, the argument is destroyed.
   bool addUsage(PtrUsage *UsageInfo);
-
-  /// Adds the given new usage info into the list of usages collected in place
-  /// of the old info. If a replacement can take place, the instance pointed to
-  /// by OldInfo is destroyed in the process. Otherwise, OldInfo stays valid
-  /// and in the data structure.
-  /// \returns true if a replace took place, false otherwise (NewInfo is
-  /// already added).
-  /// \note Ownership of NewInfo is transferred to the collection!
-  // FIXME: Maybe unneeded.
-  bool replaceUsage(PtrUsage *OldInfo, PtrUsage *NewInfo);
 
   const UseVector &getUsages() const { return CollectedUses; }
 
