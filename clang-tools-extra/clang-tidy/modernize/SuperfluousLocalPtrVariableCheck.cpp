@@ -518,6 +518,8 @@ bool SuperfluousLocalPtrVariableCheck::tryEmitReplacePointerWithDerefResult(
         EqSignPos >= InitedVarDeclWithoutInitCode.length() - 3)
       InitedVarDeclWithoutInitCode =
           InitedVarDeclWithoutInitCode.substr(0, EqSignPos);
+    while (InitedVarDeclWithoutInitCode.back() == ' ')
+      InitedVarDeclWithoutInitCode.pop_back();
 
     const std::string VarName = InitedVar->getName();
     if (InitedVarDeclWithoutInitCode.find(VarName) == std::string::npos) {
