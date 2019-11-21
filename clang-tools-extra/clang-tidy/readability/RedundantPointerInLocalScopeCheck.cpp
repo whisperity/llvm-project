@@ -316,12 +316,12 @@ void RedundantPointerInLocalScopeCheck::onEndOfTranslationUnit() {
   }
 }
 
-/// Helper function that emits the main "local ptr variable may be superfluous"
+/// Helper function that emits the main "local ptr variable may be redundant"
 /// warning for the given variable.
 void RedundantPointerInLocalScopeCheck::emitMainDiagnostic(const VarDecl *Ptr) {
   // FIXME: Mention visibility.
   diag(Ptr->getLocation(), "local pointer variable %0 might be "
-                           "superfluous as it is only used once")
+                           "redundant as it is only used once")
       << Ptr <<
       // Create a "dummy" FixIt (changing the var's name to itself). This is
       // done so that later FixIt hints (offered as suggestions) do NOT get

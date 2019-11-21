@@ -59,7 +59,7 @@ void single_member_access() {
   // Make sure the FixIt introduced by the check doesn't actually change the code.
   // CHECK-FIXES: {{^  }}T *t2 = create<T>();{{$}}
   (void)t2->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't2' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't2' here
 }
@@ -67,7 +67,7 @@ void single_member_access() {
 void ptr_of_auto_dereference() {
   auto *t3 = create<T>();
   (void)t3->tp;
-  // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't3' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't3' here
 }
@@ -86,7 +86,7 @@ void multiple_member_access() {
 void passing_the_pointer() {
   T *t5 = create<T>();
   std::free(t5);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't5' used in an expression
   // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't5' here
 }
@@ -94,7 +94,7 @@ void passing_the_pointer() {
 void single_member_to_variable() {
   T *t6 = create<T>();
   int i = t6->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't6' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the code that initialises 't6' here
 }
@@ -102,7 +102,7 @@ void single_member_to_variable() {
 void single_member_to_auto_variable_1() {
   T *t7 = create<T>();
   auto i = t7->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't7' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't7' here
 }
@@ -110,7 +110,7 @@ void single_member_to_auto_variable_1() {
 void single_member_to_auto_variable_2() {
   T *t8 = create<T>();
   auto n = t8->tp;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't8' dereferenced in the initialisation of 'n'
   // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't8' here
 }
@@ -133,7 +133,7 @@ void ptrvar_initialised_out_of_line_conditionally() {
 void complex_init_stmt(bool b) {
   T *t10 = b ? create<T>() : try_create<T>();
   std::free(t10);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't10' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't10' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't10' used in an expression
   // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't10' here
 }
@@ -141,7 +141,7 @@ void complex_init_stmt(bool b) {
 void single_memfn_call() {
   T *t11 = create<T>();
   t11->f();
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't11' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't11' here
 }
@@ -180,7 +180,7 @@ void single_checked_initialising_dereference() {
     return;
   int i = t14->i;
   // HINT: {{^  }};{{$}}
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't14' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'i' (for the dereference's result) in the "outer" scope
@@ -206,7 +206,7 @@ void single_checked_ctor_initialising_dereference_2a() {
     return;
   HasDefault HDa = t16->i;
   // HINT: {{^  }};{{$}}
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't16' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDa' (for the dereference's result) in the "outer" scope
@@ -222,7 +222,7 @@ void single_checked_ctor_initialising_dereference_2b() {
     return;
   HasDefault HDb(t17->i);
   // HINT: {{^  }};{{$}}
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't17' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDb' (for the dereference's result) in the "outer" scope
@@ -238,7 +238,7 @@ void single_checked_ctor_initialising_dereference_2c() {
     return;
   HasDefault HDc{t18->i};
   // HINT: {{^  }};{{$}}
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't18' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'HDc' (for the dereference's result) in the "outer" scope
@@ -254,7 +254,7 @@ void single_checked_ctor_initialising_dereference_2d() {
     return;
   TrivialAggregate ta{t19->i};
   // HINT: {{^  }};{{$}}
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: local pointer variable 't19' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
   // CHECK-MESSAGES: :[[@LINE-7]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: consider declaring the variable 'ta' (for the dereference's result) in the "outer" scope
