@@ -10,12 +10,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
-// clang-format off
-// FIXME: Remove debug things.
-#define  DEBUG_TYPE "SuperfluousPtr"
-#include "llvm/Support/Debug.h"
-// clang-format on
-
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -29,8 +23,9 @@ static const char DerefUsageExprId[] = "usage-stmt";
 static const char PtrGuardId[] = "ptr-guard";
 static const char EarlyReturnStmtId[] = "early-ret";
 
+namespace matchers {
+
 /// Matches pointer-type variables that are local to the function.
-// TODO: Later on this check could be broadened to work with references, too.
 static const auto PointerLocalVarDecl =
     varDecl(hasInitializer(expr()),
             anyOf(hasType(pointerType()),
@@ -40,7 +35,7 @@ static const auto PointerLocalVarDecl =
 /// Matches every usage of a local pointer variable.
 static const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl));
 
-static const auto PtrDereferenceM = stmt(anyOf(
+static const auto PtrDereference = stmt(anyOf(
     memberExpr(isArrow(), hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
         .bind(DerefUsageExprId),
     unaryOperator(hasOperatorName("*"),
@@ -51,21 +46,21 @@ static const auto PtrDereferenceM = stmt(anyOf(
 /// a pointer.
 static const auto ConstructExprWithPtrDereference =
     ignoringElidableConstructorCall(
-        cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereferenceM)));
+        cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereference)));
 
 static const auto VarInitFromPtrDereference =
     varDecl(
         anyOf(
             hasInitializer(ignoringParenImpCasts(anyOf(
                 PtrDereferenceM, // Directly initialise from dereference:
-                                 // int i = p->i
+                // int i = p->i
                 ConstructExprWithPtrDereference, // Assign-initialise through
-                                                 // ctor: T t = p->t;
+                // ctor: T t = p->t;
                 initListExpr(hasDescendant(
-                    PtrDereferenceM))))), // Aggregate initialise: S s = {p->i};
+                    PtrDereference))))), // Aggregate initialise: S s = {p->i};
             hasDescendant(
                 expr(ConstructExprWithPtrDereference)))) // Initialise with ctor
-                                                         // call: T t(p->t);
+        // call: T t(p->t);
         .bind(InitedVarId);
 
 static const auto FlowBreakingStmt =
@@ -79,13 +74,15 @@ static const auto FlowBreakingStmt =
 /// Trivial example of findings:
 ///     if (P) return;
 ///     if (!P) { continue; }
-static const auto PtrGuardM =
+static const auto PtrGuard =
     ifStmt(hasCondition(hasDescendant(PtrVarUsage.bind(UsedPtrId))),
            hasThen(anyOf(FlowBreakingStmt,
                          compoundStmt(statementCountIs(1),
                                       hasAnySubstatement(FlowBreakingStmt)))),
            unless(hasElse(stmt())))
         .bind(PtrGuardId);
+
+} // namespace matchers
 
 /// Returns the full code (end inclusive on the whole token) in the input buffer
 /// between the given two source locations.
@@ -117,65 +114,45 @@ static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
 static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   assert(RD->hasDefinition() &&
          "for forward declarations the answer is unknown.");
-  LLVM_DEBUG(llvm::dbgs()
-                 << "Checking whether this record is default constructible:\n";
-             RD->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
 
-  if (RD->isAggregate()) {
-    LLVM_DEBUG(llvm::dbgs() << "is-aggregate\n");
+  if (RD->isAggregate())
     return true;
-  }
 
   if (RD->hasDefaultConstructor()) {
-    LLVM_DEBUG(llvm::dbgs() << "has-default-ctor\n");
-
     for (const auto &D : RD->decls()) {
-      LLVM_DEBUG(llvm::dbgs() << "Checking declaration:\n";
-                 D->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
       const auto *ConD = dyn_cast<CXXConstructorDecl>(D);
       if (!ConD)
         continue;
-      LLVM_DEBUG(llvm::dbgs() << "\tis a ctor.\n");
       if (!ConD->isDefaultConstructor())
         continue;
-      LLVM_DEBUG(llvm::dbgs() << "\tis a default ctor.\n");
 
-      if (ConD->isDeleted() || ConD->isDeletedAsWritten()) {
-        LLVM_DEBUG(llvm::dbgs() << "\tis deleted / deleted-as-written\n");
+      if (ConD->isDeleted() || ConD->isDeletedAsWritten())
         return false;
-      }
-      if (ConD->isDefaulted() || ConD->isExplicitlyDefaulted()) {
-        LLVM_DEBUG(llvm::dbgs() << "\tis defaulted / explicitly defaulted.\n");
+      if (ConD->isDefaulted() || ConD->isExplicitlyDefaulted())
         return true;
-      }
 
       // Found a default-ctor, so we can default-construct.
       return true;
     }
   }
 
-  LLVM_DEBUG(llvm::dbgs() << "returning false outside...\n");
   return false;
 }
 
-// FIXME: The real end goal of this check is to find a pair of ptrs created
-//        by dereferencing the first.
-
-// FIXME: Introduce a % option for variable pollution (only report if # of
-//        superfluous ptr vars are higher than % of all (or ptr-only?) vars.
-
 void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Match pointers with UsedPtrId iff they are passed as an argument!
+  using namespace matchers;
+
   Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
                                  PtrVarUsage.bind(UsedPtrId)),
                      this);
-  Finder->addMatcher(stmt(unless(isExpansionInSystemHeader()), PtrDereferenceM),
-                     this);
+  Finder->addMatcher(
+      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference),
+      this);
   Finder->addMatcher(
       varDecl(unless(isExpansionInSystemHeader()), VarInitFromPtrDereference),
       this);
-  Finder->addMatcher(ifStmt(unless(isExpansionInSystemHeader()), PtrGuardM),
-                     this);
+  Finder->addMatcher(
+      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard), this);
 }
 
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
@@ -231,8 +208,6 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 #undef ASTNODE_FROM_MACRO
 
 void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
-  LLVM_DEBUG(llvm::dbgs() << "\n\n================== BEGIN "
-                             "onEndOfTranslationUnit ==================\n\n");
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
@@ -241,11 +216,6 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
         Usage.second.getUsages<PointeePtrUsage>();
     const UsageCollection::UseVector &PointerUsages =
         Usage.second.getUsages<PointerPtrUsage>();
-
-    LLVM_DEBUG(PtrVar->dump(llvm::dbgs());
-               llvm::dbgs() << "\n\tusages for object: " << PointeeUsages.size()
-                            << "\n\tusages for pointer (guards): "
-                            << PointerUsages.size() << '\n';);
 
     if (PointeeUsages.size() != 1)
       continue;
@@ -263,31 +233,19 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
     // Retrieve the code text the used pointer is created with.
     std::string PtrVarInitExprCode = getVarInitExprCode(
         PtrVar, PtrVar->getASTContext(), /* OuterParen =*/true);
-    LLVM_DEBUG(
-        llvm::dbgs()
-            << "Generated initialisation expression-statement code for\n";
-        PtrVar->dump(llvm::dbgs());
-        llvm::dbgs() << "\n as: " << PtrVarInitExprCode << '\n';);
     if (PtrVarInitExprCode == "()")
       // If we don't know how the pointer variable is initialised, bail out.
       continue;
 
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
       const VarDecl *InitedVar = DerefForVarInit->getInitialisedVar();
-
       const Type *VarTy = InitedVar->getType()->getUnqualifiedDesugaredType();
-      LLVM_DEBUG(llvm::dbgs() << "Initialised variable " << InitedVar->getName() << " has type:\n";
-                   InitedVar->getType().dump(llvm::dbgs()); llvm::dbgs() << '\n';
-      VarTy->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
 
       if (const auto *RD = VarTy->getAsCXXRecordDecl())
-        if (!canBeDefaultConstructed(RD)) {
+        if (!canBeDefaultConstructed(RD))
           // Do not suggest the rewrite as the inited variable couldn't be
           // default-constructed.
-          LLVM_DEBUG(llvm::dbgs() << "Variable " << InitedVar->getName()
-                                  << " can't be default-ctored.\n");
           continue;
-        }
 
       emitMainDiagnostic(PtrVar);
       diag(TheUseExpr->getLocation(),
@@ -356,8 +314,6 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
       emitConsiderUsingInitCodeDiagnostic(PtrVar, TheUsage, PtrVarInitExprCode);
     }
   }
-  LLVM_DEBUG(llvm::dbgs() << "\n\n==================  END  "
-                             "onEndOfTranslationUnit ==================\n\n");
 }
 
 /// Helper function that emits the main "local ptr variable may be superfluous"
@@ -462,23 +418,14 @@ bool SuperfluousLocalPtrVariableCheck::tryEmitPtrDerefInitGuardRewrite(
   if (VarInitCode == "()")
     CouldCreateFixIt = false;
   else {
-    LLVM_DEBUG(llvm::dbgs() << "Original VarInitCode: " << VarInitCode << '\n');
     // Cut the name of the initialized variable at the beginning, if any.
-
-    LLVM_DEBUG(llvm::dbgs() << "InitedVarName: " << InitedVarName << '\n');
     std::size_t VarNameInInitCodePos = VarInitCode.find(InitedVarName);
-    LLVM_DEBUG(llvm::dbgs() << "find(" << VarInitCode << ", " << InitedVarName
-                            << ") = " << VarNameInInitCodePos << '\n');
     if (VarNameInInitCodePos == 0)
       VarInitCode = VarInitCode.substr(InitedVarName.length());
-    LLVM_DEBUG(llvm::dbgs()
-               << "VarInitCode after cut of VarName: " << VarInitCode << '\n');
 
     // Cut the original initialiser statement's parens or brackets.
     if (*VarInitCode.begin() == '(' || *VarInitCode.begin() == '{')
       VarInitCode = VarInitCode.substr(1, VarInitCode.length() - 2);
-    LLVM_DEBUG(llvm::dbgs()
-               << "VarInitCode after cut of (, {: " << VarInitCode << '\n');
   }
 
   std::string RewrittenGuardCondition =
@@ -556,20 +503,11 @@ bool SuperfluousLocalPtrVariableCheck::tryEmitReplacePointerWithDerefResult(
 
 bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
-  LLVM_DEBUG(
-      llvm::dbgs() << "Adding usage " << UsageInfo->getUsageExpr() << '\n';
-      UsageInfo->getUsageExpr()->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
 
   for (const PtrUsage *DUI : CollectedUses) {
-    if (DUI == UsageInfo) {
-      LLVM_DEBUG(llvm::dbgs() << "Adding usage " << UsageInfo
-                              << " but it has already been added!\n";);
+    if (DUI == UsageInfo)
       return false;
-    }
     if (DUI->getUsageExpr() == UsageInfo->getUsageExpr()) {
-      LLVM_DEBUG(llvm::dbgs()
-                     << "Adding usage referring " << DUI->getUsageExpr()
-                     << " but a similar has already been found!\n";);
       delete UsageInfo;
       return false;
     }
@@ -586,14 +524,12 @@ UsageCollection::UseVector UsageCollection::getUsages() const {
 }
 
 UsageCollection::UsageCollection(UsageCollection &&UC) {
-  LLVM_DEBUG(llvm::dbgs() << "-------> MOVE CTOR UsageCollection <-------\n");
   CollectedUses.insert(CollectedUses.end(), UC.CollectedUses.begin(),
                        UC.CollectedUses.end());
   UC.CollectedUses.clear();
 }
 
 UsageCollection &UsageCollection::operator=(UsageCollection &&UC) {
-  LLVM_DEBUG(llvm::dbgs() << "-------> MOVE  ASG UsageCollection <-------\n");
   if (&UC == this)
     return *this;
 
@@ -604,14 +540,9 @@ UsageCollection &UsageCollection::operator=(UsageCollection &&UC) {
 }
 
 UsageCollection::~UsageCollection() {
-  LLVM_DEBUG(llvm::dbgs() << "\n\n================== BEGIN ~UsageCollection "
-                             "==================\n\n");
   llvm::for_each(CollectedUses, [](PtrUsage *UI) {
-    LLVM_DEBUG(llvm::dbgs() << "Destroying PtrUsage " << UI << '\n');
     delete UI;
   });
-  LLVM_DEBUG(llvm::dbgs() << "\n\n==================  END  ~UsageCollection "
-                             "==================\n\n");
 }
 
 } // namespace modernize
