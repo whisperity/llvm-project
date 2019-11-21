@@ -312,6 +312,11 @@ Improvements to clang-tidy
   :doc:`objc-property-declaration <clang-tidy/checks/objc-property-declaration>`
   check have been removed.
 
+- New :doc:`readability-redundant-pointer-dereference-chain
+  <clang-tidy/checks/readability-redundant-pointer-dereference-chain>` check.
+
+  FIXME: add release notes.
+
 - New :doc:`readability-redundant-pointer-in-local-scope
   <clang-tidy/checks/readability-redundant-pointer-in-local-scope>` check.
 

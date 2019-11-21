@@ -275,6 +275,7 @@ Clang-Tidy Checks
    readability-redundant-declaration
    readability-redundant-function-ptr-dereference
    readability-redundant-member-init
+   readability-redundant-pointer-dereference-chain
    readability-redundant-pointer-in-local-scope
    readability-redundant-preprocessor
    readability-redundant-smartptr-get
