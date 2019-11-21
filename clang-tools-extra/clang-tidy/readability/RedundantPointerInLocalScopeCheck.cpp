@@ -1,4 +1,4 @@
-//===--- SuperfluousLocalPtrVariableCheck.cpp - clang-tidy ----------------===//
+//===--------- RedundantPointerInLocalScopeCheck.cpp - clang-tidy ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SuperfluousLocalPtrVariableCheck.h"
+#include "RedundantPointerInLocalScopeCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
@@ -14,7 +14,7 @@ using namespace clang::ast_matchers;
 
 namespace clang {
 namespace tidy {
-namespace modernize {
+namespace readability {
 
 static const char InitedVarId[] = "inited-var";
 static const char UsedPtrId[] = "used-ptr";
@@ -49,18 +49,17 @@ static const auto ConstructExprWithPtrDereference =
         cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereference)));
 
 static const auto VarInitFromPtrDereference =
-    varDecl(
-        anyOf(
-            hasInitializer(ignoringParenImpCasts(anyOf(
-                PtrDereferenceM, // Directly initialise from dereference:
-                // int i = p->i
-                ConstructExprWithPtrDereference, // Assign-initialise through
-                // ctor: T t = p->t;
-                initListExpr(hasDescendant(
-                    PtrDereference))))), // Aggregate initialise: S s = {p->i};
-            hasDescendant(
-                expr(ConstructExprWithPtrDereference)))) // Initialise with ctor
-        // call: T t(p->t);
+    varDecl(anyOf(hasInitializer(ignoringParenImpCasts(anyOf(
+                      // Directly initialise from dereference: int i = p->i
+                      PtrDereference,
+                      // Assign-initialise through ctor: T t = p->t;
+                      ConstructExprWithPtrDereference,
+                      initListExpr(hasDescendant(
+                          // Aggregate initialise: S s = {p->i};
+                          PtrDereference))))),
+                  hasDescendant(
+                      // Initialise with ctor call: T t(p->t);
+                      expr(ConstructExprWithPtrDereference))))
         .bind(InitedVarId);
 
 static const auto FlowBreakingStmt =
@@ -139,7 +138,7 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   return false;
 }
 
-void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
+void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
   using namespace matchers;
 
   Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
@@ -157,7 +156,8 @@ void SuperfluousLocalPtrVariableCheck::registerMatchers(MatchFinder *Finder) {
 
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
 
-void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Result) {
+void RedundantPointerInLocalScopeCheck::check(
+    const MatchFinder::MatchResult &Result) {
   if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
     const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
     const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
@@ -207,7 +207,7 @@ void SuperfluousLocalPtrVariableCheck::check(const MatchFinder::MatchResult &Res
 
 #undef ASTNODE_FROM_MACRO
 
-void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
+void RedundantPointerInLocalScopeCheck::onEndOfTranslationUnit() {
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
@@ -318,7 +318,7 @@ void SuperfluousLocalPtrVariableCheck::onEndOfTranslationUnit() {
 
 /// Helper function that emits the main "local ptr variable may be superfluous"
 /// warning for the given variable.
-void SuperfluousLocalPtrVariableCheck::emitMainDiagnostic(const VarDecl *Ptr) {
+void RedundantPointerInLocalScopeCheck::emitMainDiagnostic(const VarDecl *Ptr) {
   // FIXME: Mention visibility.
   diag(Ptr->getLocation(), "local pointer variable %0 might be "
                            "superfluous as it is only used once")
@@ -338,7 +338,7 @@ void SuperfluousLocalPtrVariableCheck::emitMainDiagnostic(const VarDecl *Ptr) {
 /// Helper function that emits a note diagnostic for the usage of a pointer
 /// variable suggesting the user writes the code text that the pointer was
 /// initialised with to the point of use instead.
-void SuperfluousLocalPtrVariableCheck::emitConsiderUsingInitCodeDiagnostic(
+void RedundantPointerInLocalScopeCheck::emitConsiderUsingInitCodeDiagnostic(
     const VarDecl *Ptr, const PtrUsage *Usage, const std::string &InitCode) {
   diag(Usage->getUsageExpr()->getLocation(),
        "consider using the code that initialises %0 here", DiagnosticIDs::Note)
@@ -347,7 +347,7 @@ void SuperfluousLocalPtrVariableCheck::emitConsiderUsingInitCodeDiagnostic(
                                       InitCode);
 }
 
-void SuperfluousLocalPtrVariableCheck::emitGuardDiagnostic(
+void RedundantPointerInLocalScopeCheck::emitGuardDiagnostic(
     const PtrGuard *Guard) {
   std::string EarlyFlowType;
   const Stmt *FlowStmt = Guard->getFlowStmt();
@@ -393,7 +393,7 @@ void SuperfluousLocalPtrVariableCheck::emitGuardDiagnostic(
 ///
 /// This function potentially creates the FixItHint diagnostic for the rewrite
 /// of the if().
-bool SuperfluousLocalPtrVariableCheck::tryEmitPtrDerefInitGuardRewrite(
+bool RedundantPointerInLocalScopeCheck::tryEmitPtrDerefInitGuardRewrite(
     const PtrDerefVarInit *Init, const PtrGuard *Guard) {
   const auto *Ptr = cast<VarDecl>(Guard->getUsageExpr()->getDecl());
   const VarDecl *InitedVar = Init->getInitialisedVar();
@@ -455,7 +455,7 @@ bool SuperfluousLocalPtrVariableCheck::tryEmitPtrDerefInitGuardRewrite(
 /// into
 ///     int i;
 /// The potential guard and dereference is rewritten by other functions.
-bool SuperfluousLocalPtrVariableCheck::tryEmitReplacePointerWithDerefResult(
+bool RedundantPointerInLocalScopeCheck::tryEmitReplacePointerWithDerefResult(
     const VarDecl *Ptr, const PtrDerefVarInit *Init) {
   const VarDecl *InitedVar = Init->getInitialisedVar();
 
@@ -540,11 +540,9 @@ UsageCollection &UsageCollection::operator=(UsageCollection &&UC) {
 }
 
 UsageCollection::~UsageCollection() {
-  llvm::for_each(CollectedUses, [](PtrUsage *UI) {
-    delete UI;
-  });
+  llvm::for_each(CollectedUses, [](PtrUsage *UI) { delete UI; });
 }
 
-} // namespace modernize
+} // namespace readability
 } // namespace tidy
 } // namespace clang

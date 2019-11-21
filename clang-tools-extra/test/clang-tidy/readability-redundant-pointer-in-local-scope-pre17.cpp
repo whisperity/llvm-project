@@ -1,4 +1,4 @@
-// RUN: %check_clang_tidy -std=c++11,c++14 %s modernize-superfluous-local-ptr-variable %t
+// RUN: %check_clang_tidy -std=c++11,c++14 %s readability-redundant-pointer-in-local-scope %t
 
 namespace std {
 int rand();
@@ -53,7 +53,7 @@ void single_member_access() {
   // Make sure the FixIt introduced by the check doesn't actually change the code.
   // CHECK-FIXES: {{^  }}T *t2 = create<T>();{{$}}
   (void)t2->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't2' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't2' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't2' here
 }
@@ -61,7 +61,7 @@ void single_member_access() {
 void ptr_of_auto_dereference() {
   auto *t3 = create<T>();
   (void)t3->tp;
-  // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:9: warning: local pointer variable 't3' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:9: note: usage: 't3' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:9: note: consider using the code that initialises 't3' here
 }
@@ -80,7 +80,7 @@ void multiple_member_access() {
 void passing_the_pointer() {
   T *t5 = create<T>();
   std::free(t5);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't5' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't5' used in an expression
   // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't5' here
 }
@@ -88,7 +88,7 @@ void passing_the_pointer() {
 void single_member_to_variable() {
   T *t6 = create<T>();
   int i = t6->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't6' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:11: note: usage: 't6' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: consider using the code that initialises 't6' here
 }
@@ -96,7 +96,7 @@ void single_member_to_variable() {
 void single_member_to_auto_variable_1() {
   T *t7 = create<T>();
   auto i = t7->i;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't7' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't7' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't7' here
 }
@@ -104,7 +104,7 @@ void single_member_to_auto_variable_1() {
 void single_member_to_auto_variable_2() {
   T *t8 = create<T>();
   auto n = t8->tp;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't8' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:12: note: usage: 't8' dereferenced in the initialisation of 'n'
   // CHECK-MESSAGES: :[[@LINE-3]]:12: note: consider using the code that initialises 't8' here
 }
@@ -134,7 +134,7 @@ bool just_a_guard() {
 void complex_init_stmt(bool b) {
   T *t11 = b ? create<T>() : try_create<T>();
   std::free(t11);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't11' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 't11' used in an expression
   // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 't11' here
 }
@@ -142,7 +142,7 @@ void complex_init_stmt(bool b) {
 void single_memfn_call() {
   T *t12 = create<T>();
   t12->f();
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't12' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: local pointer variable 't12' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:3: note: usage: 't12' dereferenced here
   // CHECK-MESSAGES: :[[@LINE-3]]:3: note: consider using the code that initialises 't12' here
 }
@@ -169,7 +169,7 @@ void single_checked_initialising_dereference() {
     return;
   int i = t14->i;
   i += 1;
-  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer 't14', the branch, and the assignment of 'i' into an inner scope (between {brackets})
@@ -189,7 +189,7 @@ void single_checked_ctor_initialising_dereference_2a() {
   if (!t16)
     return;
   HasDefault HDa = t16->i;
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't16', the branch, and the assignment of 'HDa' into an inner scope (between {brackets})
@@ -200,7 +200,7 @@ void single_checked_ctor_initialising_dereference_2b() {
   if (!t17)
     return;
   HasDefault HDb(t17->i);
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't17', the branch, and the assignment of 'HDb' into an inner scope (between {brackets})
@@ -211,7 +211,7 @@ void single_checked_ctor_initialising_dereference_2c() {
   if (!t18)
     return;
   HasDefault HDc{t18->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't18', the branch, and the assignment of 'HDc' into an inner scope (between {brackets})
@@ -222,7 +222,7 @@ void single_checked_ctor_initialising_dereference_2d() {
   if (!t19)
     return;
   TrivialAggregate ta{t19->i};
-  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
   // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't19', the branch, and the assignment of 'ta' into an inner scope (between {brackets})
@@ -258,7 +258,7 @@ void test_macro() {
 const char *test_get_value() {
   const char *Str = "Hello Local!";
   return Str;
-  // CHECK-MESSAGES: :[[@LINE-2]]:15: warning: local pointer variable 'Str' might be superfluous as it is only used once [modernize-superfluous-local-ptr-variable]
+  // CHECK-MESSAGES: :[[@LINE-2]]:15: warning: local pointer variable 'Str' might be superfluous as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:10: note: usage: 'Str' used in an expression
   // CHECK-MESSAGES: :[[@LINE-3]]:10: note: consider using the code that initialises 'Str' here
 }

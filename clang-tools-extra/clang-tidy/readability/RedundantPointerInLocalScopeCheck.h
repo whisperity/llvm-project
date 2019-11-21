@@ -1,4 +1,4 @@
-//===--- SuperfluousLocalPtrVariableCheck.h - clang-tidy --------*- C++ -*-===//
+//===--- RedundantPointerInLocalScopeCheck.h - clang-tidy -------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_SUPERFLUOUSLOCALPTRVARIABLECHECK_H
-#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_SUPERFLUOUSLOCALPTRVARIABLECHECK_H
+#ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_REDUNDANTPOINTERINLOCALSCOPECHECK_H
+#define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_REDUNDANTPOINTERINLOCALSCOPECHECK_H
 
 #include "../ClangTidyCheck.h"
 #include "llvm/ADT/DenseMap.h"
@@ -19,7 +19,7 @@
 
 namespace clang {
 namespace tidy {
-namespace modernize {
+namespace readability {
 
 /// Base class of a usage info for pointer variables. This class acts as a
 /// small (few pointers only) hook tieing nodes of an AST together for the
@@ -198,10 +198,10 @@ using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 ///        Having tp here is superfluous, use initializing if or ?-> :P
 ///
 /// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/modernize-superfluous-local-ptr-variable.html
-class SuperfluousLocalPtrVariableCheck : public ClangTidyCheck {
+/// http://clang.llvm.org/extra/clang-tidy/checks/readability-redundant-pointer-in-local-scope.html
+class RedundantPointerInLocalScopeCheck : public ClangTidyCheck {
 public:
-  SuperfluousLocalPtrVariableCheck(StringRef Name, ClangTidyContext *Context)
+  RedundantPointerInLocalScopeCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
@@ -221,8 +221,8 @@ private:
   UsageMap Usages;
 };
 
-} // namespace modernize
+} // namespace readability
 } // namespace tidy
 } // namespace clang
 
-#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_MODERNIZE_SUPERFLUOUSLOCALPTRVARIABLECHECK_H
+#endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_REDUNDANTPOINTERINLOCALSCOPECHECK_H

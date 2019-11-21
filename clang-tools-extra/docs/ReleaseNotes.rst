@@ -230,11 +230,6 @@ Improvements to clang-tidy
   finds and replaces cases that match the pattern ``var &&
   isa<X>(var)``, where ``var`` is evaluated twice.
 
-- New :doc:`modernize-superfluous-local-ptr-variable
-  <clang-tidy/checks/modernize-superfluous-local-ptr-variable>` check.
-
-  FIXME: add release notes.
-
 - New :doc:`modernize-use-trailing-return-type
   <clang-tidy/checks/modernize-use-trailing-return-type>` check.
 
@@ -316,6 +311,11 @@ Improvements to clang-tidy
 - The `Acronyms` and `IncludeDefaultAcronyms` options for the
   :doc:`objc-property-declaration <clang-tidy/checks/objc-property-declaration>`
   check have been removed.
+
+- New :doc:`readability-redundant-pointer-in-local-scope
+  <clang-tidy/checks/readability-redundant-pointer-in-local-scope>` check.
+
+  FIXME: add release notes.
 
 
 Improvements to pp-trace

@@ -216,7 +216,6 @@ Clang-Tidy Checks
    modernize-replace-random-shuffle
    modernize-return-braced-init-list
    modernize-shrink-to-fit
-   modernize-superfluous-local-ptr-variable
    modernize-unary-static-assert
    modernize-use-auto
    modernize-use-bool-literals
@@ -276,6 +275,7 @@ Clang-Tidy Checks
    readability-redundant-declaration
    readability-redundant-function-ptr-dereference
    readability-redundant-member-init
+   readability-redundant-pointer-in-local-scope
    readability-redundant-preprocessor
    readability-redundant-smartptr-get
    readability-redundant-string-cstr
