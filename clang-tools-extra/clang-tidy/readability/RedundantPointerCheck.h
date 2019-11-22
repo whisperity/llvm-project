@@ -199,13 +199,13 @@ private:
   UseVector CollectedUses;
 };
 
-using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
-
 /// Base class for the "redundant pointer variable" checks. This base
 /// implementation is responsible for a common location of the modelling
 /// needed to run the particular checks.
 class RedundantPointerCheck : public ClangTidyCheck {
 public:
+  using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
+
   RedundantPointerCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
