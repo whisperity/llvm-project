@@ -44,13 +44,15 @@ using VarChain = SmallVector<const VarDecl *, 4>;
 /// value isn't dereferenced any further, marking the end of the chain.
 using ChainMap = DenseMap<const VarDecl *, Optional<VarChain>>;
 
+using UsageMap = RedundantPointerCheck::UsageMap;
+
 } // namespace
 
-static void buildChainsFrom(const RedundantPointerCheck::UsageMap &Usages,
-                            ChainMap &Chains, const VarDecl *Var) {
+static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
+                            const VarDecl *Var) {
   auto UIt = Usages.find(Var);
   if (UIt == Usages.end()) {
-    // If the variable is not used any further, it signifies the end of the
+    // If the variable is not used any further, it signifies the end of any
     // chain.
     Chains[Var].emplace(VarChain{});
   }
@@ -121,32 +123,77 @@ static void buildChainsFrom(const RedundantPointerCheck::UsageMap &Usages,
   Chains[InitedVar].reset(); // Mark empty Optional.
 }
 
+template <typename T>
+static T *getOnlyUsage(const UsageMap &Usages, const VarDecl *Var) {
+  auto It = Usages.find(Var);
+  if (It == Usages.end())
+    return nullptr;
+
+  const UsageCollection::UseVector &V = It->second.getUsagesOfKind<T>();
+  return V.size() == 1 ? cast<T>(V.front()) : nullptr;
+}
+
 void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
-  const LangOptions &LOpts = getLangOpts();
+  // const LangOptions &LOpts = getLangOpts();
   ChainMap Chains{Usages.size()};
   for (const auto &Usage : Usages)
     buildChainsFrom(Usages, Chains, Usage.first);
 
-  for (const auto &Chain : Chains) {
-    // LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
-    // Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-    if (!Chain.second) {
-      // LLVM_DEBUG(llvm::dbgs() << "No chain, dead end, isn't used as
-      // dereference, or incorporated into longer chain.\n");
-    } else {
-      if (Chain.second->empty()) {
-        // LLVM_DEBUG(llvm::dbgs() << "Empty chain.\n");
-      } else {
-        LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
-                   Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-        for (const auto &Var : *Chain.second) {
-          LLVM_DEBUG(llvm::dbgs() << "initialises variable " << Var << '\n';
-                     Var->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-          LLVM_DEBUG(llvm::dbgs() << "which in turn...\n");
-        }
-        LLVM_DEBUG(llvm::dbgs() << "initialises noone.\n");
-      }
+  for (const auto &E : Chains) {
+    if (!E.second || E.second->empty())
+      continue;
+    const VarChain &Chain = *E.second;
+
+    diag(Chain.back()->getLocation(),
+         "%0 initialised through dereference chain of %1 pointers, each only "
+         "used in a single dereference")
+        << Chain.back() << static_cast<unsigned>(Chain.size() + 1);
+
+    diag(E.first->getLocation(), "chain begins with %0", DiagnosticIDs::Note)
+        << E.first;
+    if (const auto *G = getOnlyUsage<PtrGuard>(Usages, E.first))
+      diag(G->getGuardStmt()->getIfLoc(), "%0 is guarded by this branch",
+           DiagnosticIDs::Note)
+          << E.first;
+    const auto *D = getOnlyUsage<PtrDerefVarInit>(Usages, E.first);
+    assert(D &&
+           "Tried to emit chain element without dereference forming chain?");
+
+    for (const VarDecl *const &VD : Chain) {
+      diag(D->getUsageExpr()->getLocation(),
+           "contains a dereference of %0 in initialisation of %1",
+           DiagnosticIDs::Note)
+          << D->getUsageExpr()->getDecl() << D->getInitialisedVar();
+      if (const auto *G = getOnlyUsage<PtrGuard>(Usages, VD))
+        diag(G->getGuardStmt()->getIfLoc(), "%0 is guarded by this branch",
+             DiagnosticIDs::Note)
+            << VD;
+
+      D = getOnlyUsage<PtrDerefVarInit>(Usages, VD);
+      assert((VD == Chain.back() || (VD != Chain.back() && D)) &&
+             "Tried to emit chain element without dereference forming chain?");
     }
+    /*
+        // LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
+        // Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+        if (!Chain.second) {
+          // LLVM_DEBUG(llvm::dbgs() << "No chain, dead end, isn't used as
+          // dereference, or incorporated into longer chain.\n");
+        } else {
+          if (Chain.second->empty()) {
+            // LLVM_DEBUG(llvm::dbgs() << "Empty chain.\n");
+          } else {
+            LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
+                       Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+            for (const auto &Var : *Chain.second) {
+              LLVM_DEBUG(llvm::dbgs() << "initialises variable " << Var << '\n';
+                         Var->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+              LLVM_DEBUG(llvm::dbgs() << "which in turn...\n");
+            }
+            LLVM_DEBUG(llvm::dbgs() << "initialises noone.\n");
+          }
+        }
+    */
   }
 }
 

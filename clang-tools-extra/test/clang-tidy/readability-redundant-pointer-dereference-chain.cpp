@@ -15,6 +15,10 @@ void dummy() {
   if (!t1n)
     return;
   int i = t1n->i;
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: warning: foo bar baz qux [readability-redundant-pointer-dereference-chain]
-  // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: foo bar baz qux [readability-redundant-pointer-dereference-chain]
+}
+
+void dummy2() {
+  T *t1 = talloc();
+  T *t1n = t1->tp;
+  int i = t1n->i;
 }
