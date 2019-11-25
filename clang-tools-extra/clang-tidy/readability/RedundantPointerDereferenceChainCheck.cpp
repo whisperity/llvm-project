@@ -139,6 +139,31 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
   for (const auto &Usage : Usages)
     buildChainsFrom(Usages, Chains, Usage.first);
 
+  // DEBUG.
+  for (const auto &Chain : Chains) {
+    LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
+               Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+    if (!Chain.second) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "No chain, dead end, isn't used as dereference, or "
+                    "incorporated into longer chain.\n");
+    } else {
+      if (Chain.second->empty()) {
+        LLVM_DEBUG(llvm::dbgs() << "Empty chain.\n");
+      } else {
+        LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
+                   Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+        for (const auto &Var : *Chain.second) {
+          LLVM_DEBUG(llvm::dbgs() << "initialises variable " << Var << '\n';
+                     Var->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
+          LLVM_DEBUG(llvm::dbgs() << "which in turn...\n");
+        }
+        LLVM_DEBUG(llvm::dbgs() << "initialises noone.\n");
+      }
+    }
+  }
+  // END DEBUG.
+
   for (const auto &E : Chains) {
     if (!E.second || E.second->empty())
       continue;
@@ -173,27 +198,6 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
       assert((VD == Chain.back() || (VD != Chain.back() && D)) &&
              "Tried to emit chain element without dereference forming chain?");
     }
-    /*
-        // LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
-        // Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-        if (!Chain.second) {
-          // LLVM_DEBUG(llvm::dbgs() << "No chain, dead end, isn't used as
-          // dereference, or incorporated into longer chain.\n");
-        } else {
-          if (Chain.second->empty()) {
-            // LLVM_DEBUG(llvm::dbgs() << "Empty chain.\n");
-          } else {
-            LLVM_DEBUG(llvm::dbgs() << "Chain for " << Chain.first << '\n';
-                       Chain.first->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-            for (const auto &Var : *Chain.second) {
-              LLVM_DEBUG(llvm::dbgs() << "initialises variable " << Var << '\n';
-                         Var->dump(llvm::dbgs()); llvm::dbgs() << '\n';);
-              LLVM_DEBUG(llvm::dbgs() << "which in turn...\n");
-            }
-            LLVM_DEBUG(llvm::dbgs() << "initialises noone.\n");
-          }
-        }
-    */
   }
 }
 
