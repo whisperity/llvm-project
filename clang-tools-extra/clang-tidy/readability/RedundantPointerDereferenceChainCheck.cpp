@@ -162,7 +162,7 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
     diag(Chain.back()->getLocation(),
          "%0 initialised through dereference chain of %1 pointers, each only "
          "used in a single dereference")
-        << Chain.back() << static_cast<unsigned>(Chain.size() + 1);
+        << Chain.back() << static_cast<unsigned>(Chain.size());
 
     diag(E.first->getLocation(), "chain begins with %0", DiagnosticIDs::Note)
         << E.first;
