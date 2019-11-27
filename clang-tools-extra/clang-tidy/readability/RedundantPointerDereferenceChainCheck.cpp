@@ -28,6 +28,8 @@ namespace readability {
 
 namespace {
 
+using UsageMap = RedundantPointerCheck::UsageMap;
+
 // Variable initialisation chains from pointer dereference are single chains,
 // as the modelling base class does not model if a pointer has multiple uses,
 // like two or more dereferences.
@@ -38,13 +40,12 @@ using VarChain = SmallVector<const VarDecl *, 4>;
 
 /// Contains which variable was used as the head element to initialise which
 /// chain.
-/// If value is an empty Optional, the variable is not used in an
-/// initialisation which is useful for this check.
+/// If value is an empty (!hasValue()) Optional, the variable is not useful
+/// in the context of this check - it might be used multiple times, or not used
+/// as a dereference initialisation.
 /// A non-empty Optional containing an empty VarChain vector indicates the
 /// value isn't dereferenced any further, marking the end of the chain.
 using ChainMap = DenseMap<const VarDecl *, Optional<VarChain>>;
-
-using UsageMap = RedundantPointerCheck::UsageMap;
 
 } // namespace
 
@@ -65,18 +66,21 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
 
   const UsageCollection::UseVector &PointeeUses =
       UIt->second.getUsagesOfKind<PointeePtrUsage>();
-  // const UsageCollection::UseVector& PointerUses =
-  // UIt->second.getUsagesOfKind<PointerPtrUsage>();
+  const UsageCollection::UseVector &PointerUses =
+      UIt->second.getUsagesOfKind<PointerPtrUsage>();
   if (PointeeUses.size() != 1) {
     LLVM_DEBUG(llvm::dbgs() << Var << " has non-single usages...\n");
-    (void)
-        Chains[Var]; // Default construct an Optional to "empty/nothing/false".
+    // Non-single usage points means a chain must be terminated.
+    // Default construct an Optional to "empty/nothing/false".
+    (void)Chains[Var];
     return;
   }
   const auto *PtrVarInitUse = dyn_cast<PtrDerefVarInit>(PointeeUses.front());
   if (!PtrVarInitUse) {
     LLVM_DEBUG(llvm::dbgs() << Var << "'s usage is not a ptr dereference...\n");
-    (void)Chains[Var];
+    // If the usage isn't a pointer dereference, the variable cannot be
+    // rewritten, but their potential initialisation could.
+    Chains[Var].emplace(VarChain{});
     return;
   }
 
@@ -84,17 +88,6 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
   const VarDecl *InitedVar = PtrVarInitUse->getInitialisedVar();
   LLVM_DEBUG(llvm::dbgs() << Var << " initialises " << InitedVar << '\n');
   auto CIt = Chains.find(InitedVar);
-  if (CIt != Chains.end() && !CIt->second) {
-    LLVM_DEBUG(llvm::dbgs() << InitedVar << " has been calculated already\n");
-    // The variable initialised by *Var is a dead end from chaining
-    // perspective. Because Var is only used to initialise the InitedVar,
-    // Var should mark a dead end too.
-    LLVM_DEBUG(llvm::dbgs() << InitedVar << " is a dead end. Marking " << Var
-                            << " as dead end too...\n");
-    (void)Chains[Var];
-    return;
-  }
-
   if (CIt == Chains.end()) {
     // If the initialised variable is not found in the chains, calculate it.
     buildChainsFrom(Usages, Chains, InitedVar);
@@ -103,11 +96,8 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
 
   // The variable initialised from *Var now has a chain registered, a new
   // chain can be formed by "prepending" Var to it.
-  LLVM_DEBUG(llvm::dbgs() << InitedVar << " is not a dead end.\n");
-  LLVM_DEBUG(llvm::dbgs() << InitedVar << " has a chain of size: "
-                          << CIt->second->size() << "\n");
   VarChain Chain{InitedVar};
-  if (CIt->second->empty()) {
+  if (!CIt->second) {
     LLVM_DEBUG(llvm::dbgs() << "Creating a chain with one element...\n");
   } else {
     LLVM_DEBUG(llvm::dbgs() << InitedVar << " has a chain of size: "

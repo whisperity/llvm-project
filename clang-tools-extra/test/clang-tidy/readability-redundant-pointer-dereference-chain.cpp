@@ -73,7 +73,7 @@ void longer_example() {
   X *p8 = p7->z;
   Y *p9 = p7->aa;
 
-  free(p9); // p9 "unused" in terms of deref
+  free(p9); // p9 "unused" in terms of deref!
   free(p8); // p8 ditto.
   free(p7); // p7 not needed after the usages.
 }
