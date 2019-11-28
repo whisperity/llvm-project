@@ -15,8 +15,6 @@ struct T;
 struct U;
 struct Q;
 struct W;
-struct X;
-struct Y;
 
 T *talloc();
 
@@ -29,12 +27,8 @@ struct T {
 struct U {
   Q *x;
   W *y;
+  T *t;
   short s;
-};
-struct W {
-  X *z;
-  Y *aa;
-  char c;
 };
 
 void no() {
@@ -64,57 +58,147 @@ void chain_len2() {
   T *t2 = talloc();
   T *t2n = t2->f;
   T *t2nn = t2n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't2nn' initialised through dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't2nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't2nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
 }
 
-// FIXME: Write more tests.
+void chain_len2_use() {
+  T *t3 = talloc();
+  T *t3n = t3->f;
+  T *t3nn = t3n->f;
+  std::free(t3nn);
+}
 
-/*
-void dummy() {
-  S *s1 = salloc();
-  if (!s1)
+void chain_len2_deref() {
+  T *t4 = talloc();
+  T *t4n = t4->f;
+  T *t4nn = t4n->f;
+  std::free(t4nn->a);
+}
+
+void chain_len2_1guard() {
+  T *t5 = talloc();
+  if (!t5)
     return;
-  S *s1n = s1->tp;
-  if (!s1n)
+  T *t5n = t5->f;
+  T *t5nn = t5n->f;
+}
+
+void chain_len2_2guard() {
+  T *t6 = talloc();
+  if (!t6)
     return;
-  int i = s1n->i;
+  T *t6n = t6->f;
+  if (!t6n)
+    return;
+  T *t6nn = t6n->f;
 }
 
-void dummy2() {
-  S *s1 = salloc();
-  S *s1n = s1->tp;
-  int i = s1n->i;
+void chain_len2_2guard_use() {
+  T *t7 = talloc();
+  if (!t7)
+    return;
+  T *t7n = t7->f;
+  if (!t7n)
+    return;
+  T *t7nn = t7n->f;
+  std::free(t7nn);
 }
-*/
 
-#if 0
-void longer_example() {
-  // FIXME: This isn't working...
-  /* begin chain len 3 */
-  T *p1 = talloc();
-  T *p2 = p1->f;
-  T *p3 = p2->f; /* p3 has 2 uses */
-  /* end chain */
-  // FIXME: Report chain of 3, p1 and p2 not needed.
-
-  /* begin chain len 2 */
-  U *p4 = p3->a;
-  Q *p5 = p4->x;
-  /* end chain len 2 */
-  free(p5); // p5 unused any further
-  // FIXME: Report chain of 2, p4 not needed.
-
-  /* begin chain len 2 */
-  U *p6 = p3->b;
-  W *p7 = p6->y; /* p7 has 2 uses */
-  /* end chain len 2 */
-  // FIXME: Report chain of 2, p6 not needed.
-
-  X *p8 = p7->z;
-  Y *p9 = p7->aa;
-
-  free(p9); // p9 "unused" in terms of deref!
-  free(p8); // p8 ditto.
-  free(p7); // p7 not needed after the usages.
+void chain_len2_2guard_deref() {
+  T *t8 = talloc();
+  if (!t8)
+    return;
+  T *t8n = t8->f;
+  if (!t8n)
+    return;
+  T *t8nn = t8n->f;
+  std::free(t8nn->f);
 }
-#endif
+
+void chain_len3() {
+  T *t9 = talloc();
+  T *t9n = t9->f;
+  T *t9nn = t9n->f;
+  T *t9nnn = t9nn->f;
+}
+
+void chain_len3_use() {
+  T *t10 = talloc();
+  T *t10n = t10->f;
+  T *t10nn = t10n->f;
+  T *t10nnn = t10nn->f;
+  std::free(t10nnn);
+}
+
+void chain_len3_deref() {
+  T *t11 = talloc();
+  T *t11n = t11->f;
+  T *t11nn = t11n->f;
+  T *t11nnn = t11nn->f;
+  std::free(t11nnn->a);
+}
+
+void multiple_chains_nouse() {
+  T *mc1a = talloc();
+  T *mc1b = mc1a->f;
+  T *mc1c = mc1b->f;
+
+  U *mc1u = mc1c->a;
+  Q *mc1q = mc1u->x;
+
+  U *mc1u2 = mc1c->b;
+  W *mc1w = mc1u2->y;
+}
+
+void multiple_chains_use() {
+  T *mc2a = talloc();
+  T *mc2b = mc2a->f;
+  T *mc2c = mc2b->f;
+
+  U *mc2u = mc2c->a;
+  Q *mc2q = mc2u->x;
+
+  U *mc2u2 = mc2c->b;
+  W *mc2w = mc2u2->y;
+
+  std::free(mc2w);
+  std::free(mc2q);
+}
+
+void multiple_chains_deref() {
+  T *mc3a = talloc();
+  T *mc3b = mc3a->f;
+  T *mc3c = mc3b->f;
+
+  U *mc3u = mc3c->a;
+  Q *mc3q = mc3u->x;
+
+  U *mc3u2 = mc3c->b;
+
+  std::free(mc3u2->x);
+  std::free(mc3u2->y);
+}
+
+void branching() {
+  T *bt = talloc();
+  T *bt2 = bt->f;
+  T *bt3 = bt2->f;
+
+  // Branch 1.
+  U *bu = bt3->a;
+  W *bw = bu->y;
+  std::free(bw);
+
+  // Branch 2.
+  U *bu2 = bt3->b;
+  Q *bq = bu2->x;
+  bq;
+
+  // Branch 3.
+  U *bu3 = bt3->f->a;
+  T *bt4 = bu3->t;
+  T *bt5 = bt4->f;
+  U *bu4 = bt5->a;
+  std::free(bu4->t);
+}
