@@ -49,6 +49,7 @@ using ChainMap = DenseMap<const VarDecl *, Optional<VarChain>>;
 
 } // namespace
 
+// FIXME: Rewrite the chain builder, as this implementation is bad.
 static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
                             const VarDecl *Var) {
   auto UIt = Usages.find(Var);
