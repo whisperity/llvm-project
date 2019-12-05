@@ -267,7 +267,7 @@ void multiple_chains_deref() {
 
 void multiple_chain_different_usages() {
   T *bt1 = talloc();
-  T *bt2 = bt->f;
+  T *bt2 = bt1->f;
   T *bt3 = bt2->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'bt3' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 'bt1'
@@ -282,7 +282,6 @@ void multiple_chain_different_usages() {
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bt3' in initialisation of 'bu'
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bu' in initialisation of 'bw'
 
-  // Branch 2.
   U *bu2 = bt3->b;
   Q *bq = bu2->x;
   bq;
@@ -291,7 +290,6 @@ void multiple_chain_different_usages() {
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 'bt3' in initialisation of 'bu2'
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bu2' in initialisation of 'bq'
 
-  // Branch 3.
   U *bu3 = bt3->f->a;
   T *bt4 = bu3->t;
   T *bt5 = bt4->f;
