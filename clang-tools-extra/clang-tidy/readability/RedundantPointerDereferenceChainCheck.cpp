@@ -33,18 +33,13 @@ public:
   using ChainVec = SmallVector<const VarDecl *, 4>;
 
   explicit Chain(const VarDecl *Head) {
-    LLVM_DEBUG(llvm::dbgs() << "Chain(" << Head->getName() << ")\n");
     append(Head);
   }
   Chain(const VarDecl *Head, const VarDecl *Last) {
-    LLVM_DEBUG(llvm::dbgs() << "Chain(" << Head->getName() << ", "
-                            << Last->getName() << ")\n");
     append(Head);
     append(Last);
   }
   Chain(const VarDecl *Head, const Chain &Elems) {
-    LLVM_DEBUG(llvm::dbgs() << "Chain(" << Head->getName() << ", <chain-of-"
-                            << Elems.Elements.size() << "-elems>)\n");
     // [H, C1, C2, ...]
     append(Head);
     append(Elems);
@@ -64,9 +59,6 @@ public:
   size_t size() const { return Elements.size(); }
 
   void append(const VarDecl *VD) {
-    LLVM_DEBUG(llvm::dbgs() << (Elements.empty() ? StringRef("<Nil>")
-                                                 : Elements[0]->getName())
-                            << ".append(" << VD->getName() << ")\n");
     Elements.push_back(VD);
   }
   void append(const Chain &C) {
@@ -104,15 +96,11 @@ static SmallVector<const T *, 4> getUsagesCast(const UsageMap &Usages,
   if (It == Usages.end())
     return {};
 
-  LLVM_DEBUG(llvm::dbgs() << "Var found, trying to cast.\n");
   const UsageCollection::UseVector &V = It->second.getUsagesOfKind<T>();
-  LLVM_DEBUG(llvm::dbgs() << "V size = " << V.size() << '\n');
   SmallVector<const T *, 4> Ret;
   transform(V, std::back_inserter(Ret), [](const PtrUsage *PU) {
-    LLVM_DEBUG(llvm::dbgs() << "Casting " << PU << '\n');
     return cast<const T>(PU);
   });
-  LLVM_DEBUG(llvm::dbgs() << "R size = " << Ret.size() << '\n');
   return Ret;
 }
 
@@ -221,32 +209,26 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
 
   for (const auto &E : Chains) {
     // LLVM_DEBUG(llvm::dbgs() << "Chains for " << E.first->getName() << '\n';);
-    if (E.second.empty()) {
-#if 0
-      LLVM_DEBUG(llvm::dbgs()
-                   << "No chain formed, var isn't used as dereference, or had been "
-                      "incorporated into longer chain.\n");
-#endif
-    } else {
-      for (const auto &C : E.second) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "\n>>> NEW CHAIN from " << C.head()->getName() << " to "
-                   << C.last()->getName() << " <<<\n");
-        assert(C.head() == E.first &&
-               "Bogus modelling: chain stored for wrong VarDecl!");
+    if (E.second.empty())
+      continue;
 
-        if (!C.firstElementElidable())
-          LLVM_DEBUG(llvm::dbgs() << "The first element cannot be elided.\n");
-        if (C.hasPtrUsages())
-          LLVM_DEBUG(llvm::dbgs() << "There are guard statements.\n");
+    for (const auto &C : E.second) {
+      LLVM_DEBUG(llvm::dbgs() << "\n>>> NEW CHAIN from " << C.head()->getName()
+                              << " to " << C.last()->getName() << " <<<\n");
+      assert(C.head() == E.first &&
+             "Bogus modelling: chain stored for wrong VarDecl!");
 
-        for (const auto *VD : C.range()) {
-          LLVM_DEBUG(llvm::dbgs() << "Element of chain: " << VD;
-                     // llvm::dbgs() << '\n';
-                     llvm::dbgs() << " " << VD->getName();
-                     // VD->dump(llvm::dbgs());
-                     llvm::dbgs() << '\n';);
-        }
+      if (!C.firstElementElidable())
+        LLVM_DEBUG(llvm::dbgs() << "The first element cannot be elided.\n");
+      if (C.hasPtrUsages())
+        LLVM_DEBUG(llvm::dbgs() << "There are guard statements.\n");
+
+      for (const auto *VD : C.range()) {
+        LLVM_DEBUG(llvm::dbgs() << "Element of chain: " << VD;
+                   // llvm::dbgs() << '\n';
+                   llvm::dbgs() << " " << VD->getName();
+                   // VD->dump(llvm::dbgs());
+                   llvm::dbgs() << '\n';);
       }
     }
   }
@@ -281,13 +263,8 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
                    << "chain contains dereference of " << Var->getName()
                    << " in initialisation of " << InitedVar->getName() << '\n');
         const auto &DerefUsages = getUsagesCast<PtrDerefVarInit>(Usages, Var);
-        LLVM_DEBUG(llvm::dbgs() << DerefUsages.size() << '\n');
         const auto &DerefIt =
             find_if(DerefUsages, [&InitedVar](const PtrDerefVarInit *PDVI) {
-              LLVM_DEBUG(llvm::dbgs()
-                         << "Checking PDVI InitedVar "
-                         << PDVI->getInitialisedVar()->getName() << " against "
-                         << InitedVar->getName() << '\n');
               return PDVI->getInitialisedVar() == InitedVar;
             });
         assert(DerefIt != DerefUsages.end() &&
@@ -310,13 +287,6 @@ void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
         diag(G->getGuardStmt()->getIfLoc(), "%0 is guarded by this branch",
              DiagnosticIDs::Note)
             << E.first;
-      const auto *D = getOnlyUsage<PtrDerefVarInit>(Usages, E.first);
-      assert(D &&
-             "Tried to emit chain element without dereference forming chain?");
-
-      for (const VarDecl *const &VD : Chain) {
-
-      }
 #endif
     }
   }
