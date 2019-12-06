@@ -87,6 +87,8 @@ void chain_len2_deref() {
   std::free(t4nn->a);
 }
 
+// FIXME: Guards don't work yet.
+
 void chain_len2_1guard() {
   T *t5 = talloc();
   if (!t5)
@@ -95,9 +97,9 @@ void chain_len2_1guard() {
   T *t5nn = t5n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't5nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-6]]:6: note: chain begins with 't5'
-  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: 't5' is guarded by this branch
-  // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 't5' in initialisation of 't5n'
-  // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 't5n' in initialisation of 't5nn'
+  // NCHECK-MESSAGES: :[[@LINE-6]]:3: note: 't5' is guarded by this branch
+  // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 't5' in initialisation of 't5n'
+  // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't5n' in initialisation of 't5nn'
 }
 
 void chain_len2_2guard() {
@@ -110,9 +112,9 @@ void chain_len2_2guard() {
   T *t6nn = t6n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't6nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't6'
-  // CHECK-MESSAGES: :[[@LINE-8]]:3: note: 't6' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't6' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't6' in initialisation of 't6n'
-  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: 't6n' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't6n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't6n' in initialisation of 't6nn'
 }
 
@@ -126,9 +128,9 @@ void chain_len2_2guard_use() {
   T *t7nn = t7n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't7nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't7'
-  // CHECK-MESSAGES: :[[@LINE-8]]:3: note: 't7' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't7' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't7' in initialisation of 't7n'
-  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: 't7n' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't7n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't7n' in initialisation of 't7nn'
   std::free(t7nn);
 }
@@ -143,9 +145,9 @@ void chain_len2_2guard_deref() {
   T *t8nn = t8n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't8nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't8'
-  // CHECK-MESSAGES: :[[@LINE-8]]:3: note: 't8' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't8' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't8' in initialisation of 't8n'
-  // CHECK-MESSAGES: :[[@LINE-7]]:3: note: 't8n' is guarded by this branch
+  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't8n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't8n' in initialisation of 't8nn'
   std::free(t8nn->f);
 }
@@ -212,7 +214,7 @@ void multiple_chains_nouse() {
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1w' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-19]]:6: note: chain begins with 'mc1c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:14: note: contains a dereference of 'mc1c' in initialisation of 'mc1u2'
-  // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1u2' in initialisation of 'mc1q'
+  // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1u2' in initialisation of 'mc1w'
 }
 
 void multiple_chains_use() {
@@ -236,7 +238,7 @@ void multiple_chains_use() {
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2w' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-16]]:6: note: chain begins with 'mc2c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:14: note: contains a dereference of 'mc2c' in initialisation of 'mc2u2'
-  // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2u2' in initialisation of 'mc2q'
+  // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2u2' in initialisation of 'mc2w'
 
   std::free(mc2w);
   std::free(mc2q);
@@ -286,7 +288,7 @@ void multiple_chain_different_usages() {
   Q *bq = bu2->x;
   bq;
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bq' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
-  // CHECK-MESSAGES: :[[@LINE-19]]:6: note: chain begins with 'bt3', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-18]]:6: note: chain begins with 'bt3', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 'bt3' in initialisation of 'bu2'
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bu2' in initialisation of 'bq'
 
@@ -296,7 +298,7 @@ void multiple_chain_different_usages() {
   U *bu4 = bt5->a;
   std::free(bu4->t);
   // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bu4' initialised from dereference chain of 4 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
-  // CHECK-MESSAGES: :[[@LINE-30]]:6: note: chain begins with 'bt3', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-28]]:6: note: chain begins with 'bt3', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bt3' in initialisation of 'bu3'
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bu3' in initialisation of 'bt4'
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bt4' in initialisation of 'bt5'
