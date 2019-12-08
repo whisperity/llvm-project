@@ -25,6 +25,8 @@ static const char EarlyReturnStmtId[] = "early-ret";
 
 namespace matchers {
 
+// FIXME: Don't match loop variables of any kind as they can't be elided.
+
 /// Matches pointer-type variables that are local to the function.
 static const auto PointerLocalVarDecl =
     varDecl(hasInitializer(expr()),
@@ -140,6 +142,10 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
 
 void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
   using namespace matchers;
+
+  // FIXME: Match on every FunctionDecl, and offer a callback logic
+  //   "onEndFunctionDecl" similar to "onEndTranslationUnit", as the collected
+  //   information need not be kept between functions.
 
   Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
                                  PtrVarUsage.bind(UsedPtrId)),

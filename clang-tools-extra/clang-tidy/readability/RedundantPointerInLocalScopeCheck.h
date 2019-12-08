@@ -38,7 +38,7 @@ struct PtrUsage {
   enum AnnotationKind {
     Pointee, //< Represents a "direct use" of the pointee object, an access.
     Pointer  //< Represents uses of a pointer variable that are not direct,
-    //< but only concern the pointer itself.
+             //< but only concern the pointer itself.
   };
   PUKind getKind() const { return Kind; }
   AnnotationKind getAnnotationKind() const { return AnnotKind; }
@@ -191,11 +191,6 @@ private:
 using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 
 /// FIXME: Write a short description.
-///        T* tp = ...;
-///        if (!tp) return; // This should be ignored.
-///        U* up = tp->something;
-///
-///        Having tp here is superfluous, use initializing if or ?-> :P
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability-redundant-pointer-in-local-scope.html
