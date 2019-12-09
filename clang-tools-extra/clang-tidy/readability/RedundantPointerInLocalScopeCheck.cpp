@@ -10,9 +10,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
-#define DEBUG_TYPE "SuperfluousPtr"
-#include "llvm/Support/Debug.h"
-
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -151,12 +148,8 @@ class RedundantPointerInLocalScopeCheck::PtrUseModelCallback
 public:
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
   void run(const MatchFinder::MatchResult &Result) override {
-    LLVM_DEBUG(llvm::dbgs() << "Callback::run()\n");
-
     // PointerPtrUsages:
     if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
-      LLVM_DEBUG(llvm::dbgs() << "Guard If.\n");
-
       const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
       const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
       const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
@@ -205,15 +198,8 @@ public:
     // base class usage so the diagnostic builder don't consider, e.g. an if()
     // *after* a use guarding the use itself.
     if (Added) {
-      LLVM_DEBUG(llvm::dbgs() << "New Pointee-usage was added.\n");
-      if (isPointerOnlyUseFoundAlreadyFor<PtrGuard>(DRE)) {
-        LLVM_DEBUG(llvm::dbgs()
-                   << "A guard was found after the usage... removing.\n");
-
+      if (isPointerOnlyUseFoundAlreadyFor<PtrGuard>(DRE))
         turnSubtypeUsesToBase<PtrArgument, PtrGuard>(DRE);
-      }
-    } else {
-      LLVM_DEBUG(llvm::dbgs() << "Pointee-usage ignored.\n");
     }
   }
 #undef ASTNODE_FROM_MACRO
@@ -231,7 +217,6 @@ private:
       return {};
     const UsageCollection::UseVector &PtrUsages =
         It->second.getUsages<PtrOnlyUseTy>();
-    LLVM_DEBUG(llvm::dbgs() << PtrUsages.size() << '\n');
     return PtrUsages.empty() ? SourceLocation{}
                              : PtrUsages.front()->getUsageExpr()->getLocation();
   }
@@ -242,17 +227,12 @@ private:
         cast<VarDecl>(CurDRE->getDecl()));
     if (L.isInvalid())
       return false;
-    LLVM_DEBUG(llvm::dbgs()
-               << "CurDRE " << CurDRE << "->getLocation() < Loc of guard? "
-               << (CurDRE->getLocation() < L) << '\n');
     return CurDRE->getLocation() < L;
   }
 
   template <typename BaseT, typename DerT, typename... Args>
   void turnSubtypeUsesToBase(const DeclRefExpr *DRE, Args &&... args) {
     UsageCollection &Coll = Usages[cast<VarDecl>(DRE->getDecl())];
-    LLVM_DEBUG(llvm::dbgs()
-               << "Collection size: " << Coll.getUsages().size() << '\n');
     const UsageCollection::UseVector &DerTUses = Coll.getUsages<DerT>();
 
     for (const PtrUsage *Usage : DerTUses) {
@@ -618,7 +598,6 @@ void UsageCollection::removeUsage(const PtrUsage *UsageInfo) {
 
   for (auto It = CollectedUses.begin(); It != CollectedUses.end(); ++It) {
     if (*It == UsageInfo) {
-      LLVM_DEBUG(llvm::dbgs() << "Removing usage at " << *It << '\n');
       delete *It;
       CollectedUses.erase(It);
       break;
