@@ -188,19 +188,22 @@ private:
   UseVector CollectedUses;
 };
 
-using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
-
 /// FIXME: Write a short description.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/readability-redundant-pointer-in-local-scope.html
 class RedundantPointerInLocalScopeCheck : public ClangTidyCheck {
 public:
+  using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
+
   RedundantPointerInLocalScopeCheck(StringRef Name, ClangTidyContext *Context)
       : ClangTidyCheck(Name, Context) {}
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void onEndOfTranslationUnit() override;
+  void check(const ast_matchers::MatchFinder::MatchResult &Result) final;
+
+  /// Emits diagnostics for the groups of collected pointer usages when the
+  /// collection is done.
+  virtual void onEndOfModelledChunk(const UsageMap &Usages);
 
 private:
   void emitMainDiagnostic(const VarDecl *Ptr);
@@ -212,8 +215,6 @@ private:
                                        const PtrGuard *Guard);
   bool tryEmitReplacePointerWithDerefResult(const VarDecl *Ptr,
                                             const PtrDerefVarInit *Init);
-
-  UsageMap Usages;
 };
 
 } // namespace readability

@@ -140,80 +140,113 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   return false;
 }
 
-void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
-  using namespace matchers;
-
-  // FIXME: Match on every FunctionDecl, and offer a callback logic
-  //   "onEndFunctionDecl" similar to "onEndTranslationUnit", as the collected
-  //   information need not be kept between functions.
-
-  Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
-                                 PtrVarUsage.bind(UsedPtrId)),
-                     this);
-  Finder->addMatcher(
-      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference),
-      this);
-  Finder->addMatcher(
-      varDecl(unless(isExpansionInSystemHeader()), VarInitFromPtrDereference),
-      this);
-  Finder->addMatcher(
-      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard), this);
+template <typename MatchT, typename Callback>
+void applyCallbackOnMatchingSubtree(MatchT Matcher, const FunctionDecl *FD,
+                                    Callback R) {
+  const auto &Result =
+      match(functionDecl(forEachDescendant(Matcher)), *FD, FD->getASTContext());
+  for (const BoundNodes &Nodes : Result)
+    R(Nodes);
 }
 
+void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
+  // Match all (C/C++) functions explicitly written by the user.
+  Finder->addMatcher(
+      functionDecl(isDefinition(),
+                   unless(ast_matchers::isTemplateInstantiation()))
+          .bind("fun"),
+      this);
+
+  Finder->addMatcher(
+      functionDecl(isDefinition(), isExplicitTemplateSpecialization())
+          .bind("fun"),
+      this);
+}
+
+#define CALLBACK [&Usages](const BoundNodes &Nodes) -> void
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
 
 void RedundantPointerInLocalScopeCheck::check(
     const MatchFinder::MatchResult &Result) {
-  if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
-    const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
-    const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
-    const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
+  // The first part of the check is to model the inner variable matches for
+  // every function.
+  UsageMap Usages;
 
-    if (ASTNODE_FROM_MACRO(GuardIf) || ASTNODE_FROM_MACRO(FlowStmt) ||
-        ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+  const auto *Fun = Result.Nodes.getNodeAs<FunctionDecl>("fun");
+
+  auto GuardIf = CALLBACK {
+    if (const auto *GuardIf = Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
+      const auto *FlowStmt = Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
+      const auto *DRefExpr = Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
+      const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
+
+      if (ASTNODE_FROM_MACRO(GuardIf) || ASTNODE_FROM_MACRO(FlowStmt) ||
+          ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+        return;
+      Usages[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
       return;
-    Usages[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
-    return;
-  }
+    }
+  };
+  applyCallbackOnMatchingSubtree(
+      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard), Fun,
+      GuardIf);
 
-  if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
-    const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
-    const auto *DRefExpr =
-        Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
-    const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
+  auto DerefVarInit = CALLBACK {
+    if (const auto *VarInit = Nodes.getNodeAs<VarDecl>(InitedVarId)) {
+      const auto *DerefExpr = Nodes.getNodeAs<Expr>(DerefUsageExprId);
+      const auto *DRefExpr = Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
+      const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
-    if (ASTNODE_FROM_MACRO(VarInit) || ASTNODE_FROM_MACRO(DerefExpr) ||
-        ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+      if (ASTNODE_FROM_MACRO(VarInit) || ASTNODE_FROM_MACRO(DerefExpr) ||
+          ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+        return;
+      Usages[RefPtrVar].addUsage(
+          new PtrDerefVarInit{DRefExpr, DerefExpr, VarInit});
       return;
-    Usages[RefPtrVar].addUsage(
-        new PtrDerefVarInit{DRefExpr, DerefExpr, VarInit});
-    return;
-  }
+    }
+  };
+  applyCallbackOnMatchingSubtree(varDecl(unless(isExpansionInSystemHeader()),
+                                         matchers::VarInitFromPtrDereference),
+                                 Fun, DerefVarInit);
 
-  if (const auto *PtrDRE =
-          Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId)) {
-    const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
-    const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
+  auto Deref = CALLBACK {
+    if (const auto *PtrDRE = Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId)) {
+      const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
+      const auto *DerefExpr = Nodes.getNodeAs<Expr>(DerefUsageExprId);
 
-    if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
-        ASTNODE_FROM_MACRO(DerefExpr))
+      if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
+          ASTNODE_FROM_MACRO(DerefExpr))
+        return;
+      Usages[RefPtrVar].addUsage(new PtrDereference{PtrDRE, DerefExpr});
       return;
-    Usages[RefPtrVar].addUsage(new PtrDereference{PtrDRE, DerefExpr});
-    return;
-  }
+    }
+  };
+  applyCallbackOnMatchingSubtree(
+      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference), Fun,
+      Deref);
 
-  if (const auto *PtrDRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
-    const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
-    if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar))
+  auto PtrUse = CALLBACK {
+    if (const auto *PtrDRE = Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
+      const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
+      if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar))
+        return;
+      Usages[RefPtrVar].addUsage(new PtrArgument{PtrDRE});
       return;
-    Usages[RefPtrVar].addUsage(new PtrArgument{PtrDRE});
-    return;
-  }
+    }
+  };
+  applyCallbackOnMatchingSubtree(
+      declRefExpr(unless(isExpansionInSystemHeader()),
+                  matchers::PtrVarUsage.bind(UsedPtrId)),
+      Fun, PtrUse);
+
+  onEndOfModelledChunk(Usages);
 }
 
 #undef ASTNODE_FROM_MACRO
+#undef CALLBACK
 
-void RedundantPointerInLocalScopeCheck::onEndOfTranslationUnit() {
+void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
+    const UsageMap &Usages) {
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
