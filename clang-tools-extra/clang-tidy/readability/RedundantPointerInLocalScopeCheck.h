@@ -181,8 +181,6 @@ public:
   /// Removes the usage referring the same `DeclRefExpr` from the collection.
   void removeUsage(const PtrUsage *UsageInfo);
 
-  const PtrUsage *getUsageFor(const DeclRefExpr *UsageRef) const;
-
   const UseVector &getUsages() const { return CollectedUses; }
 
   /// Get all usages in order which are of the given usage type (isa<T>). This

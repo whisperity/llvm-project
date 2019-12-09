@@ -207,9 +207,13 @@ public:
     if (Added) {
       LLVM_DEBUG(llvm::dbgs() << "New Pointee-usage was added.\n");
       if (isPointerOnlyUseFoundAlreadyFor<PtrGuard>(DRE)) {
-        LLVM_DEBUG(llvm::dbgs() << "A guard was found... removing.\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "A guard was found after the usage... removing.\n");
+
         turnSubtypeUsesToBase<PtrArgument, PtrGuard>(DRE);
       }
+    } else {
+      LLVM_DEBUG(llvm::dbgs() << "Pointee-usage ignored.\n");
     }
   }
 #undef ASTNODE_FROM_MACRO
@@ -227,6 +231,7 @@ private:
       return {};
     const UsageCollection::UseVector &PtrUsages =
         It->second.getUsages<PtrOnlyUseTy>();
+    LLVM_DEBUG(llvm::dbgs() << PtrUsages.size() << '\n');
     return PtrUsages.empty() ? SourceLocation{}
                              : PtrUsages.front()->getUsageExpr()->getLocation();
   }
@@ -237,6 +242,9 @@ private:
         cast<VarDecl>(CurDRE->getDecl()));
     if (L.isInvalid())
       return false;
+    LLVM_DEBUG(llvm::dbgs()
+               << "CurDRE " << CurDRE << "->getLocation() < Loc of guard? "
+               << (CurDRE->getLocation() < L) << '\n');
     return CurDRE->getLocation() < L;
   }
 
@@ -245,16 +253,12 @@ private:
     UsageCollection &Coll = Usages[cast<VarDecl>(DRE->getDecl())];
     LLVM_DEBUG(llvm::dbgs()
                << "Collection size: " << Coll.getUsages().size() << '\n');
-    const auto *Usage = dyn_cast<DerT>(Coll.getUsageFor(DRE));
-    LLVM_DEBUG(llvm::dbgs()
-               << "Found usage " << Usage << " for DRE at " << DRE << '\n');
+    const UsageCollection::UseVector &DerTUses = Coll.getUsages<DerT>();
 
-    if (!Usage)
-      return;
-
-    LLVM_DEBUG(llvm::dbgs() << "Usage matches <DerT>");
-    Coll.removeUsage(Usage);
-    Coll.addUsage(new BaseT{DRE, std::forward<Args>(args)...});
+    for (const PtrUsage *Usage : DerTUses) {
+      Coll.removeUsage(Usage);
+      Coll.addUsage(new BaseT{DRE, std::forward<Args>(args)...});
+    }
   }
 };
 
@@ -612,29 +616,14 @@ bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
 void UsageCollection::removeUsage(const PtrUsage *UsageInfo) {
   assert(UsageInfo && "provide a valid UsageInfo instance");
 
-  auto It = CollectedUses.begin();
-  while (It != CollectedUses.end()) {
+  for (auto It = CollectedUses.begin(); It != CollectedUses.end(); ++It) {
     if (*It == UsageInfo) {
       LLVM_DEBUG(llvm::dbgs() << "Removing usage at " << *It << '\n');
       delete *It;
       CollectedUses.erase(It);
+      break;
     }
   }
-}
-
-const PtrUsage *
-UsageCollection::getUsageFor(const DeclRefExpr *UsageRef) const {
-  LLVM_DEBUG(llvm::dbgs() << "Searching for reference of DRE: " << UsageRef
-                          << '\n');
-  for (const PtrUsage *DUI : CollectedUses) {
-    LLVM_DEBUG(llvm::dbgs() << "Check usage at " << DUI << " referring "
-                            << DUI->getUsageExpr() << '\n');
-    if (DUI->getUsageExpr() == UsageRef) {
-      LLVM_DEBUG(llvm::dbgs() << "MATCH!\n");
-      return DUI;
-    }
-  }
-  return nullptr;
 }
 
 template <typename PtrUsageTypes>
