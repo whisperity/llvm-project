@@ -10,6 +10,9 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
+#define DEBUG_TYPE "SuperfluousPtr"
+#include "llvm/Support/Debug.h"
+
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -76,7 +79,8 @@ static const auto FlowBreakingStmt =
 ///     if (P) return;
 ///     if (!P) { continue; }
 static const auto PtrGuard =
-    ifStmt(hasCondition(hasDescendant(PtrVarUsage.bind(UsedPtrId))),
+    ifStmt(hasCondition(allOf(hasDescendant(PtrVarUsage.bind(UsedPtrId)),
+                              unless(hasDescendant(PtrDereference)))),
            hasThen(anyOf(FlowBreakingStmt,
                          compoundStmt(statementCountIs(1),
                                       hasAnySubstatement(FlowBreakingStmt)))),
@@ -140,110 +144,159 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   return false;
 }
 
-template <typename MatchT, typename Callback>
-void applyCallbackOnMatchingSubtree(MatchT Matcher, const FunctionDecl *FD,
-                                    Callback R) {
-  const auto &Result =
-      match(functionDecl(forEachDescendant(Matcher)), *FD, FD->getASTContext());
-  for (const BoundNodes &Nodes : Result)
-    R(Nodes);
-}
-
-void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
-  // Match all (C/C++) functions explicitly written by the user.
-  Finder->addMatcher(
-      functionDecl(isDefinition(),
-                   unless(ast_matchers::isTemplateInstantiation()))
-          .bind("fun"),
-      this);
-
-  Finder->addMatcher(
-      functionDecl(isDefinition(), isExplicitTemplateSpecialization())
-          .bind("fun"),
-      this);
-}
-
-#define CALLBACK [&Usages](const BoundNodes &Nodes) -> void
+/// Helper class that handles match callbacks for pointer usages within a
+/// function.
+class RedundantPointerInLocalScopeCheck::PtrUseModelCallback
+    : public MatchFinder::MatchCallback {
+public:
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
+  void run(const MatchFinder::MatchResult &Result) override {
+    LLVM_DEBUG(llvm::dbgs() << "Callback::run()\n");
 
-void RedundantPointerInLocalScopeCheck::check(
-    const MatchFinder::MatchResult &Result) {
-  // The first part of the check is to model the inner variable matches for
-  // every function.
-  UsageMap Usages;
+    // PointerPtrUsages:
+    if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
+      LLVM_DEBUG(llvm::dbgs() << "Guard If.\n");
 
-  const auto *Fun = Result.Nodes.getNodeAs<FunctionDecl>("fun");
-
-  auto GuardIf = CALLBACK {
-    if (const auto *GuardIf = Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
-      const auto *FlowStmt = Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
-      const auto *DRefExpr = Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
+      const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
+      const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
       const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
       if (ASTNODE_FROM_MACRO(GuardIf) || ASTNODE_FROM_MACRO(FlowStmt) ||
           ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
         return;
+
       Usages[RefPtrVar].addUsage(new PtrGuard{DRefExpr, GuardIf, FlowStmt});
       return;
     }
-  };
-  applyCallbackOnMatchingSubtree(
-      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard), Fun,
-      GuardIf);
 
-  auto DerefVarInit = CALLBACK {
-    if (const auto *VarInit = Nodes.getNodeAs<VarDecl>(InitedVarId)) {
-      const auto *DerefExpr = Nodes.getNodeAs<Expr>(DerefUsageExprId);
-      const auto *DRefExpr = Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
-      const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
+    // PointeePtrUsages:
+    const DeclRefExpr *DRE;
+    bool Added = false;
 
+    if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
+      const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
+      DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
+      const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
       if (ASTNODE_FROM_MACRO(VarInit) || ASTNODE_FROM_MACRO(DerefExpr) ||
-          ASTNODE_FROM_MACRO(DRefExpr) || ASTNODE_FROM_MACRO(RefPtrVar))
+          ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar))
         return;
-      Usages[RefPtrVar].addUsage(
-          new PtrDerefVarInit{DRefExpr, DerefExpr, VarInit});
-      return;
-    }
-  };
-  applyCallbackOnMatchingSubtree(varDecl(unless(isExpansionInSystemHeader()),
-                                         matchers::VarInitFromPtrDereference),
-                                 Fun, DerefVarInit);
 
-  auto Deref = CALLBACK {
-    if (const auto *PtrDRE = Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId)) {
-      const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
-      const auto *DerefExpr = Nodes.getNodeAs<Expr>(DerefUsageExprId);
-
-      if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
+      Added = Usages[RefPtrVar].addUsage(
+          new PtrDerefVarInit{DRE, DerefExpr, VarInit});
+    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId))) {
+      const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
+      const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
+      if (ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
           ASTNODE_FROM_MACRO(DerefExpr))
         return;
-      Usages[RefPtrVar].addUsage(new PtrDereference{PtrDRE, DerefExpr});
-      return;
-    }
-  };
-  applyCallbackOnMatchingSubtree(
-      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference), Fun,
-      Deref);
 
-  auto PtrUse = CALLBACK {
-    if (const auto *PtrDRE = Nodes.getNodeAs<DeclRefExpr>(UsedPtrId)) {
-      const auto *RefPtrVar = cast<VarDecl>(PtrDRE->getDecl());
-      if (ASTNODE_FROM_MACRO(PtrDRE) || ASTNODE_FROM_MACRO(RefPtrVar))
+      Added = Usages[RefPtrVar].addUsage(new PtrDereference{DRE, DerefExpr});
+    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId))) {
+      const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
+      if (ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar))
         return;
-      Usages[RefPtrVar].addUsage(new PtrArgument{PtrDRE});
-      return;
-    }
-  };
-  applyCallbackOnMatchingSubtree(
-      declRefExpr(unless(isExpansionInSystemHeader()),
-                  matchers::PtrVarUsage.bind(UsedPtrId)),
-      Fun, PtrUse);
 
-  onEndOfModelledChunk(Usages);
+      Added = Usages[RefPtrVar].addUsage(new PtrArgument{DRE});
+    }
+
+    // If a new usage is added when ptr-only usage lexically after the usage is
+    // found (due to ptr-only usage statements matching earlier, and their
+    // sub-statements ignored by addUsage()), these usages must be turned into a
+    // base class usage so the diagnostic builder don't consider, e.g. an if()
+    // *after* a use guarding the use itself.
+    if (Added) {
+      LLVM_DEBUG(llvm::dbgs() << "New Pointee-usage was added.\n");
+      if (isPointerOnlyUseFoundAlreadyFor<PtrGuard>(DRE)) {
+        LLVM_DEBUG(llvm::dbgs() << "A guard was found... removing.\n");
+        turnSubtypeUsesToBase<PtrArgument, PtrGuard>(DRE);
+      }
+    }
+  }
+#undef ASTNODE_FROM_MACRO
+
+  RedundantPointerInLocalScopeCheck::UsageMap &getUsages() { return Usages; }
+  void reset() { Usages.clear(); }
+
+private:
+  RedundantPointerInLocalScopeCheck::UsageMap Usages;
+
+  template <typename PtrOnlyUseTy>
+  SourceLocation getAlreadyFoundPtrUsageLocation(const VarDecl *PtrVar) {
+    auto It = Usages.find(PtrVar);
+    if (It == Usages.end())
+      return {};
+    const UsageCollection::UseVector &PtrUsages =
+        It->second.getUsages<PtrOnlyUseTy>();
+    return PtrUsages.empty() ? SourceLocation{}
+                             : PtrUsages.front()->getUsageExpr()->getLocation();
+  }
+
+  template <typename PtrOnlyUseTy>
+  bool isPointerOnlyUseFoundAlreadyFor(const DeclRefExpr *CurDRE) {
+    SourceLocation L = getAlreadyFoundPtrUsageLocation<PtrOnlyUseTy>(
+        cast<VarDecl>(CurDRE->getDecl()));
+    if (L.isInvalid())
+      return false;
+    return CurDRE->getLocation() < L;
+  }
+
+  template <typename BaseT, typename DerT, typename... Args>
+  void turnSubtypeUsesToBase(const DeclRefExpr *DRE, Args &&... args) {
+    UsageCollection &Coll = Usages[cast<VarDecl>(DRE->getDecl())];
+    LLVM_DEBUG(llvm::dbgs()
+               << "Collection size: " << Coll.getUsages().size() << '\n');
+    const auto *Usage = dyn_cast<DerT>(Coll.getUsageFor(DRE));
+    LLVM_DEBUG(llvm::dbgs()
+               << "Found usage " << Usage << " for DRE at " << DRE << '\n');
+
+    if (!Usage)
+      return;
+
+    LLVM_DEBUG(llvm::dbgs() << "Usage matches <DerT>");
+    Coll.removeUsage(Usage);
+    Coll.addUsage(new BaseT{DRE, std::forward<Args>(args)...});
+  }
+};
+
+RedundantPointerInLocalScopeCheck::RedundantPointerInLocalScopeCheck(
+    StringRef Name, ClangTidyContext *Context)
+    : ClangTidyCheck(Name, Context),
+      UsageCB(llvm::make_unique<PtrUseModelCallback>()) {}
+
+void RedundantPointerInLocalScopeCheck::registerMatchers(MatchFinder *Finder) {
+  // On the boundaries of C(++) functions, diagnostics should be emitted.
+  Finder->addMatcher(
+      functionDecl(isDefinition(),
+                   unless(ast_matchers::isTemplateInstantiation())),
+      this);
+
+  Finder->addMatcher(
+      functionDecl(isDefinition(), isExplicitTemplateSpecialization()), this);
+
+  // Set up the callbacks for the modelling callback instance.
+  Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
+                                 matchers::PtrVarUsage.bind(UsedPtrId)),
+                     UsageCB.get());
+  Finder->addMatcher(
+      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference),
+      UsageCB.get());
+  Finder->addMatcher(varDecl(unless(isExpansionInSystemHeader()),
+                             matchers::VarInitFromPtrDereference),
+                     UsageCB.get());
+  Finder->addMatcher(
+      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard),
+      UsageCB.get());
 }
 
-#undef ASTNODE_FROM_MACRO
-#undef CALLBACK
+void RedundantPointerInLocalScopeCheck::forAllCollected() {
+  // At every function boundary, the diagnostics should be calculated and
+  // flushed. This can't happen *inside* a function, as this check itself models
+  // information that can only be calculated from visiting the entire function.
+  const UsageMap &PreviousFunCollectedUsages = UsageCB->getUsages();
+  if (!PreviousFunCollectedUsages.empty())
+    onEndOfModelledChunk(PreviousFunCollectedUsages);
+  UsageCB->reset();
+}
 
 void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
     const UsageMap &Usages) {
@@ -554,6 +607,34 @@ bool UsageCollection::addUsage(PtrUsage *UsageInfo) {
 
   CollectedUses.push_back(UsageInfo);
   return true;
+}
+
+void UsageCollection::removeUsage(const PtrUsage *UsageInfo) {
+  assert(UsageInfo && "provide a valid UsageInfo instance");
+
+  auto It = CollectedUses.begin();
+  while (It != CollectedUses.end()) {
+    if (*It == UsageInfo) {
+      LLVM_DEBUG(llvm::dbgs() << "Removing usage at " << *It << '\n');
+      delete *It;
+      CollectedUses.erase(It);
+    }
+  }
+}
+
+const PtrUsage *
+UsageCollection::getUsageFor(const DeclRefExpr *UsageRef) const {
+  LLVM_DEBUG(llvm::dbgs() << "Searching for reference of DRE: " << UsageRef
+                          << '\n');
+  for (const PtrUsage *DUI : CollectedUses) {
+    LLVM_DEBUG(llvm::dbgs() << "Check usage at " << DUI << " referring "
+                            << DUI->getUsageExpr() << '\n');
+    if (DUI->getUsageExpr() == UsageRef) {
+      LLVM_DEBUG(llvm::dbgs() << "MATCH!\n");
+      return DUI;
+    }
+  }
+  return nullptr;
 }
 
 template <typename PtrUsageTypes>

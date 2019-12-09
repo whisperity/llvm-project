@@ -178,6 +178,11 @@ public:
   /// collection! If the element could not be added, the argument is destroyed.
   bool addUsage(PtrUsage *UsageInfo);
 
+  /// Removes the usage referring the same `DeclRefExpr` from the collection.
+  void removeUsage(const PtrUsage *UsageInfo);
+
+  const PtrUsage *getUsageFor(const DeclRefExpr *UsageRef) const;
+
   const UseVector &getUsages() const { return CollectedUses; }
 
   /// Get all usages in order which are of the given usage type (isa<T>). This
@@ -196,16 +201,25 @@ class RedundantPointerInLocalScopeCheck : public ClangTidyCheck {
 public:
   using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 
-  RedundantPointerInLocalScopeCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+  RedundantPointerInLocalScopeCheck(StringRef Name, ClangTidyContext *Context);
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) final;
+  void check(const ast_matchers::MatchFinder::MatchResult &Result) final {
+    forAllCollected();
+  }
+  void onEndOfTranslationUnit() final { forAllCollected(); }
+
+private:
+  /// Helper class that acts as a callback for the matches on usage variables.
+  class PtrUseModelCallback;
+  std::unique_ptr<PtrUseModelCallback> UsageCB;
+
+  /// Clean up and emit diagnostics for the collected information in *UsageCB.
+  void forAllCollected();
 
   /// Emits diagnostics for the groups of collected pointer usages when the
   /// collection is done.
-  virtual void onEndOfModelledChunk(const UsageMap &Usages);
+  void onEndOfModelledChunk(const UsageMap &Usages);
 
-private:
   void emitMainDiagnostic(const VarDecl *Ptr);
   void emitConsiderUsingInitCodeDiagnostic(const VarDecl *Ptr,
                                            const PtrUsage *Usage,
