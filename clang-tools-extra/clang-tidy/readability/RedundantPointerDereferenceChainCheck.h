@@ -24,7 +24,9 @@ public:
   RedundantPointerDereferenceChainCheck(StringRef Name,
                                         ClangTidyContext *Context)
       : RedundantPointerCheck(Name, Context) {}
-  void onEndOfTranslationUnit() override;
+
+protected:
+  void onEndOfModelledChunk(const UsageMap &Usages) override;
 };
 
 } // namespace readability

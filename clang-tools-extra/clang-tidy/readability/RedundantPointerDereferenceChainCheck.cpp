@@ -196,7 +196,8 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
   LLVM_DEBUG(llvm::dbgs() << "buildChainsFrom <<<<<<< returning.\n");
 }
 
-void RedundantPointerDereferenceChainCheck::onEndOfTranslationUnit() {
+void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
+    const UsageMap &Usages) {
   // const LangOptions &LOpts = getLangOpts();
   ChainMap Chains{Usages.size()};
   for (const auto &Usage : Usages)
