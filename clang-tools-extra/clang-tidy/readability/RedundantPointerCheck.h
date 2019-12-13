@@ -17,6 +17,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_TIDY_READABILITY_REDUNDANTPOINTERCHECK_H
 
 #include "../ClangTidyCheck.h"
+#include "llvm/ADT/BitmaskEnum.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
@@ -161,16 +162,31 @@ private:
   const Stmt *FlowStmt;
 };
 
+LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
+
+enum PtrVarFlags {
+  PVF_Pointer = 0,         //< Conventional pointer.
+  PVF_Dereferenceable = 1, //< User type that is dereferenceable, like an iterator.
+
+  // Indicate that the variable itself cannot be rewritten or eliminated.
+  PVF_FunctionParm = 2, //< Function argument.
+  PVF_LoopVar = 4,      //< Loop variable.
+
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ LoopVar)
+};
+
 /// Holds information about usages (expressions that reference) of a
-/// declaration.
+/// variable (declaration).
 ///
-/// This data structure is used to store in which context (expression or
-/// declaration) a previous pointer variable declaration is used.
+/// This data structure is used to store the contexts (expression or
+/// declaration) in which pointer variable declarations are used.
+/// One of this type is instantiated for each used variable that matches
+/// the search criteria.
 class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
 
-  UsageCollection() = default;
+  UsageCollection() : Flags(PVF_Pointer) {};
   UsageCollection(UsageCollection &&UC);
   UsageCollection &operator=(UsageCollection &&UC);
 
@@ -195,8 +211,12 @@ public:
         CollectedUses, [](PtrUsage *UI) { return isa<PtrUsageType>(UI); })};
   }
 
+  PtrVarFlags &flags() { return Flags; }
+  const PtrVarFlags &flags() const { return Flags; }
+
 private:
   UseVector CollectedUses;
+  PtrVarFlags Flags;
 };
 
 /// Base class for the "redundant pointer variable" checks. This base

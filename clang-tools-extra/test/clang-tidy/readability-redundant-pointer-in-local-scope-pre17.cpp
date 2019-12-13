@@ -3,6 +3,12 @@
 namespace std {
 int rand();
 void free(void *p);
+
+template <typename T>
+struct vector {
+  T *begin() const;
+  T *end() const;
+};
 } // namespace std
 
 class T {
@@ -283,9 +289,36 @@ int dereference_is_not_a_guard() {
 }
 
 void if_after_usage_is_not_a_guard() {
-  T *t22 = create<T>();
-  T *t22n = t22->tp;
-  if (!t22)
+  T *t21 = create<T>();
+  T *t21n = t21->tp;
+  if (!t21)
     return;
   // NO-WARN: The "guard-like" **after** the usage point is not a guard.
+}
+
+int loop_variable(const std::vector<T *> V) {
+  int i = 0;
+  for (T **tp = V.begin(); tp != V.end(); ++tp) {
+    i += (*tp)->i;
+  }
+  return i;
+  // NO-WARN: Loop variables can't be refactored, they should be ignored.
+}
+
+int ignore_foreach_loop_variables(const std::vector<T *> V) {
+  int i = 0;
+  for (const T *tit : V) {
+    i += tit->i;
+  }
+  return i;
+  // NO-WARN: Loop variables can't be refactored, they should be ignored.
+}
+
+int ignore_foreach_loop_auto_variables(const std::vector<T *> V) {
+  int i = 0;
+  for (const auto tit : V) {
+    i += tit->i;
+  }
+  return i;
+  // NO-WARN: Loop variables can't be refactored, they should be ignored.
 }

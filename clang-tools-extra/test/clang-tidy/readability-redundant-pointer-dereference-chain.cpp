@@ -2,6 +2,12 @@
 
 namespace std {
 void free(void *ptr);
+
+template <typename T>
+struct vector {
+  T *begin() const;
+  T *end() const;
+};
 } // namespace std
 
 struct S {
@@ -97,7 +103,7 @@ void chain_len2_1guard() {
   T *t5nn = t5n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't5nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-6]]:6: note: chain begins with 't5'
-  // NCHECK-MESSAGES: :[[@LINE-6]]:3: note: 't5' is guarded by this branch
+  // FIXME: :[[@LINE-6]]:3: note: 't5' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 't5' in initialisation of 't5n'
   // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't5n' in initialisation of 't5nn'
 }
@@ -112,9 +118,9 @@ void chain_len2_2guard() {
   T *t6nn = t6n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't6nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't6'
-  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't6' is guarded by this branch
+  // FIXME: :[[@LINE-8]]:3: note: 't6' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't6' in initialisation of 't6n'
-  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't6n' is guarded by this branch
+  // FIXME: :[[@LINE-7]]:3: note: 't6n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't6n' in initialisation of 't6nn'
 }
 
@@ -128,9 +134,9 @@ void chain_len2_2guard_use() {
   T *t7nn = t7n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't7nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't7'
-  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't7' is guarded by this branch
+  // FIXME: :[[@LINE-8]]:3: note: 't7' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't7' in initialisation of 't7n'
-  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't7n' is guarded by this branch
+  // FIXME: :[[@LINE-7]]:3: note: 't7n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't7n' in initialisation of 't7nn'
   std::free(t7nn);
 }
@@ -145,9 +151,9 @@ void chain_len2_2guard_deref() {
   T *t8nn = t8n->f;
   // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't8nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't8'
-  // NCHECK-MESSAGES: :[[@LINE-8]]:3: note: 't8' is guarded by this branch
+  // FIXME: :[[@LINE-8]]:3: note: 't8' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't8' in initialisation of 't8n'
-  // NCHECK-MESSAGES: :[[@LINE-7]]:3: note: 't8n' is guarded by this branch
+  // FIXME: :[[@LINE-7]]:3: note: 't8n' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-6]]:13: note: contains a dereference of 't8n' in initialisation of 't8nn'
   std::free(t8nn->f);
 }
@@ -303,4 +309,43 @@ void multiple_chain_different_usages() {
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bu3' in initialisation of 'bt4'
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bt4' in initialisation of 'bt5'
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bt5' in initialisation of 'bu4'
+}
+
+void loop_variable(const std::vector<T *> V) {
+  for (T **tp = V.begin(); tp != V.end(); ++tp) {
+    T *tin = (*tp)->f;
+    T *tinn = tin->f;
+    T *tinnn = tinn->f;
+    std::free(tinnn->a);
+  }
+  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tinnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-7]]:12: note: chain begins with 'tp', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: contains a dereference of 'It' in initialisation of 'tp'
+  // CHECK-MESSAGES: :[[@LINE-7]]:15: note: contains a dereference of 'tin' in initialisation of 'tinn'
+  // CHECK-MESSAGES: :[[@LINE-7]]:16: note: contains a dereference of 'tinn' in initialisation of 'tinnn'
+}
+
+void foreach_loop_variable(const std::vector<T *> V) {
+  for (const auto It : V) {
+    T *tin = It->f;
+    T *tinn = tin->f;
+    T *tinnn = tinn->f;
+    std::free(tinnn->a);
+  }
+  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tinnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-7]]:19: note: chain begins with 'It', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-7]]:14: note: contains a dereference of 'It' in initialisation of 'tin'
+  // CHECK-MESSAGES: :[[@LINE-7]]:15: note: contains a dereference of 'tin' in initialisation of 'tinn'
+  // CHECK-MESSAGES: :[[@LINE-7]]:16: note: contains a dereference of 'tinn' in initialisation of 'tinnn'
+}
+
+void chain_from_argument(T *t12) {
+  T *t12n = t12->f;
+  T *t12nn = t12n->f;
+  T *t12nnn = t12nn->f;
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't12nnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-5]]:29: note: chain begins with 't12', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't12' in initialisation of 't12n'
+  // CHECK-MESSAGES: :[[@LINE-5]]:14: note: contains a dereference of 't12n' in initialisation of 't12nn'
+  // CHECK-MESSAGES: :[[@LINE-5]]:15: note: contains a dereference of 't12nn' in initialisation of 't12nnn'
 }
