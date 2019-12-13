@@ -32,11 +32,9 @@ namespace readability {
 struct PtrUsage {
   enum PUKind {
     /* Pointee usages. */
-    Ptr_Argument,    //< Represents a "read" of the pointer as an argument to
-                     //< an expression.
+    Ptr_Argument,    //< Represents a "read" of the pointer as an argument.
     Ptr_Dereference, //< Represents a "read" where the ptr is dereferenced.
-    Ptr_Deref_Init,  //< Represents a dereference used in an initialisation of
-                     //< another variable.
+    Ptr_Deref_Init,  //< Represents a dereference used in an initialisation.
 
     /* Pointer usages. */
     Ptr_Guard //< Represents a "guard" on the pointer's value
@@ -59,12 +57,11 @@ protected:
 private:
   const PUKind Kind;
   const AnnotationKind AnnotKind;
-
   const DeclRefExpr *RefExpr;
 };
 
-/// Intermediate base class that represents direct pointer usages which may
-/// result in accessing the pointee.
+/// Tag type and intermittent base class representing direct pointer variable
+/// usages which indicate a potential access on the pointee.
 struct PointeePtrUsage : PtrUsage {
   static bool classof(const PtrUsage *I) {
     return I->getAnnotationKind() == Pointee;
@@ -75,9 +72,8 @@ protected:
       : PtrUsage(UsageRef, K, Pointee) {}
 };
 
-/// Pointer variable appearing in argument of an expression:
+/// Pointer variable passed as argument:
 ///     free(p)
-///     ++p;
 struct PtrArgument : PointeePtrUsage {
   PtrArgument(const DeclRefExpr *Usage)
       : PointeePtrUsage(Usage, Ptr_Argument) {}
@@ -135,8 +131,8 @@ private:
   const VarDecl *InitedVarDecl;
 };
 
-/// Intermediate base class that represents usages of a pointer which does
-/// not result in accessing the pointee.
+/// Tag type and intermittent base class representing usages of a pointer
+/// variable that do not concern the pointee but only the pointer itself.
 struct PointerPtrUsage : PtrUsage {
   static bool classof(const PtrUsage *I) {
     return I->getAnnotationKind() == Pointer;
@@ -147,11 +143,9 @@ protected:
       : PtrUsage(UsageRef, K, Pointer) {}
 };
 
-/// Guard with an early control flow action (return, continue, ...) on a
-/// pointer:
-///     if (!p) return;
-///     if (p > _end) longjmp(8);
-///     if (p) std::exit(42);
+/// Guard with an early control flow redirect (return, continue, ...) on a
+/// pointer variable:
+///     if (p) return;
 struct PtrGuard : PointerPtrUsage {
   PtrGuard(const DeclRefExpr *UsageRef, const IfStmt *Guard, const Stmt *FlowS)
       : PointerPtrUsage(UsageRef, Ptr_Guard), GuardStmt(Guard),
@@ -167,8 +161,11 @@ private:
   const Stmt *FlowStmt;
 };
 
-/// Owning collection of PtrUsage instances, containing the modelled tags on
-/// expressions that refer a pointer.
+/// Holds information about usages (expressions that reference) of a
+/// declaration.
+///
+/// This data structure is used to store in which context (expression or
+/// declaration) a previous pointer variable declaration is used.
 class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
@@ -185,6 +182,9 @@ public:
   /// \note Ownership of UsageInfo is transferred to the function, and the
   /// collection! If the element could not be added, the argument is destroyed.
   bool addUsage(PtrUsage *UsageInfo);
+
+  /// Removes the usage referring the same `DeclRefExpr` from the collection.
+  void removeUsage(const PtrUsage *UsageInfo);
 
   const UseVector &getUsages() const { return CollectedUses; }
 
@@ -206,14 +206,29 @@ using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 /// needed to run the particular checks.
 class RedundantPointerCheck : public ClangTidyCheck {
 public:
-  RedundantPointerCheck(StringRef Name, ClangTidyContext *Context)
-      : ClangTidyCheck(Name, Context) {}
+  using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
+
+  RedundantPointerCheck(StringRef Name, ClangTidyContext *Context);
+  virtual ~RedundantPointerCheck();
+
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
-  void check(const ast_matchers::MatchFinder::MatchResult &Result) override;
-  void onEndOfTranslationUnit() override = 0;
+  void check(const ast_matchers::MatchFinder::MatchResult &Result) final {
+    forAllCollected();
+  }
+  void onEndOfTranslationUnit() final { forAllCollected(); }
 
 protected:
-  UsageMap Usages;
+  /// Emits diagnostics for the groups of collected pointer usages when the
+  /// collection is done.
+  virtual void onEndOfModelledChunk(const UsageMap &Usages) = 0;
+
+private:
+  /// Helper class that acts as a callback for the matches on usage variables.
+  class PtrUseModelCallback;
+  PtrUseModelCallback *UsageCB;
+
+  /// Clean up and emit diagnostics for the collected information in *UsageCB.
+  void forAllCollected();
 };
 
 } // namespace readability

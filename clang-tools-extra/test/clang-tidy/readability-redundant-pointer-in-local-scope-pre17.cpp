@@ -271,3 +271,21 @@ private:
 };
 
 const char *HasStaticMember::StrM = "Hello Member!";
+
+int dereference_is_not_a_guard() {
+  T *t21 = create<T>();
+  T *t21n = t21->tp;
+  if (t21->i < 0)
+    return 1;
+  return t21n->i + t21n->i;
+  // NO-WARN: if (t21->i < 0) is NOT a "guard statement", but a use!
+  // NO-WARN: Thus both 't21' and 't21n' are used multiple (2) times.
+}
+
+void if_after_usage_is_not_a_guard() {
+  T *t22 = create<T>();
+  T *t22n = t22->tp;
+  if (!t22)
+    return;
+  // NO-WARN: The "guard-like" **after** the usage point is not a guard.
+}

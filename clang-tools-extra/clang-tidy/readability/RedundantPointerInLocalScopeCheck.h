@@ -23,7 +23,9 @@ class RedundantPointerInLocalScopeCheck : public RedundantPointerCheck {
 public:
   RedundantPointerInLocalScopeCheck(StringRef Name, ClangTidyContext *Context)
       : RedundantPointerCheck(Name, Context) {}
-  void onEndOfTranslationUnit() override;
+
+protected:
+  void onEndOfModelledChunk(const UsageMap &Usages) override;
 
 private:
   void emitMainDiagnostic(const VarDecl *Ptr);

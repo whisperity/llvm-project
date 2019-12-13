@@ -71,7 +71,8 @@ static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   return false;
 }
 
-void RedundantPointerInLocalScopeCheck::onEndOfTranslationUnit() {
+void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
+    const UsageMap &Usages) {
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
