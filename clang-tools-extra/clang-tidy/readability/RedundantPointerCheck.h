@@ -1,4 +1,4 @@
-//===--- RedundantPointerInLocalScopeCheck.h - clang-tidy -------*- C++ -*-===//
+//===--- RedundantPointerCheck.h - clang-tidy -------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -198,8 +198,6 @@ public:
 private:
   UseVector CollectedUses;
 };
-
-using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 
 /// Base class for the "redundant pointer variable" checks. This base
 /// implementation is responsible for a common location of the modelling

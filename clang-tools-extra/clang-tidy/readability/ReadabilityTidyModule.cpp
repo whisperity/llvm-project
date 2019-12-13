@@ -31,6 +31,7 @@
 #include "RedundantDeclarationCheck.h"
 #include "RedundantFunctionPtrDereferenceCheck.h"
 #include "RedundantMemberInitCheck.h"
+#include "RedundantPointerDereferenceChainCheck.h"
 #include "RedundantPointerInLocalScopeCheck.h"
 #include "RedundantPreprocessorCheck.h"
 #include "RedundantSmartptrGetCheck.h"
@@ -87,6 +88,8 @@ public:
         "readability-redundant-function-ptr-dereference");
     CheckFactories.registerCheck<RedundantMemberInitCheck>(
         "readability-redundant-member-init");
+    CheckFactories.registerCheck<RedundantPointerDereferenceChainCheck>(
+        "readability-redundant-pointer-dereference-chain");
     CheckFactories.registerCheck<RedundantPointerInLocalScopeCheck>(
         "readability-redundant-pointer-in-local-scope");
     CheckFactories.registerCheck<RedundantPreprocessorCheck>(
