@@ -165,14 +165,15 @@ private:
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 enum PtrVarFlags {
-  PVF_Pointer = 0,         //< Conventional pointer.
-  PVF_Dereferenceable = 1, //< User type that is dereferenceable, like an iterator.
+  PVF_None = 0x000,
+  PVF_Pointer = 0x001,         //< Conventional pointer.
+  PVF_Dereferenceable = 0x010, //< User type that is dereferenceable,
+                               //< like an iterator.
 
   // Indicate that the variable itself cannot be rewritten or eliminated.
-  PVF_FunctionParm = 2, //< Function argument.
-  PVF_LoopVar = 4,      //< Loop variable.
+  PVF_LoopVar = 0x100, //< Loop variable.
 
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ LoopVar)
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ PVF_LoopVar)
 };
 
 /// Holds information about usages (expressions that reference) of a
@@ -186,7 +187,7 @@ class UsageCollection {
 public:
   using UseVector = llvm::SmallVector<PtrUsage *, 4>;
 
-  UsageCollection() : Flags(PVF_Pointer) {};
+  UsageCollection() : Flags(PVF_None){};
   UsageCollection(UsageCollection &&UC);
   UsageCollection &operator=(UsageCollection &&UC);
 
@@ -213,6 +214,7 @@ public:
 
   PtrVarFlags &flags() { return Flags; }
   const PtrVarFlags &flags() const { return Flags; }
+  bool hasFlag(PtrVarFlags FlagBit) const { return Flags & FlagBit; }
 
 private:
   UseVector CollectedUses;

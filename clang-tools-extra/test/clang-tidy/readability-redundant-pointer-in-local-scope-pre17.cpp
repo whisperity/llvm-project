@@ -305,7 +305,17 @@ int loop_variable(const std::vector<T *> V) {
   // NO-WARN: Loop variables can't be refactored, they should be ignored.
 }
 
-int ignore_foreach_loop_variables(const std::vector<T *> V) {
+int loop_variable_multiple(const std::vector<T *> V) {
+  int i = 0;
+  for (T **tp = V.begin(), **tp2 = V.begin() + 1; tp != V.end() && tp2 != V.end() - 1; ++tp, --tp2) {
+    i += (*tp)->i;
+    i -= (*tp2)->i;
+  }
+  return i;
+  // NO-WARN: Loop variables can't be refactored, they should be ignored.
+}
+
+int foreach_loop_variable(const std::vector<T *> V) {
   int i = 0;
   for (const T *tit : V) {
     i += tit->i;
@@ -314,11 +324,16 @@ int ignore_foreach_loop_variables(const std::vector<T *> V) {
   // NO-WARN: Loop variables can't be refactored, they should be ignored.
 }
 
-int ignore_foreach_loop_auto_variables(const std::vector<T *> V) {
+int foreach_loop_auto_variable(const std::vector<T *> V) {
   int i = 0;
   for (const auto tit : V) {
     i += tit->i;
   }
   return i;
   // NO-WARN: Loop variables can't be refactored, they should be ignored.
+}
+
+void ignore_function_parameters(T *t22 = nullptr) {
+  T *t22n = t22->tp;
+  // NO-WARN: Function parms should be ignored as they can't be refactored.
 }

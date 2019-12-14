@@ -13,7 +13,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 // clang-format off
-#define  DEBUG_TYPE "PtrChain"
+#define  DEBUG_TYPE "RedundantPtr"
 #include "llvm/Support/Debug.h"
 // clang-format on
 
@@ -146,6 +146,27 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
     }
     CIt = Chains.find(InitedVar); // Recursive call might invalidate iterator.
 
+    // If the initialised var is created from an implicit loop variable
+    // (range-based for loop), ignore the implicit one.
+    {
+      auto InitedVarUseIt = Usages.find(InitedVar);
+      if (InitedVarUseIt != Usages.end() && Var->isImplicit() &&
+          InitedVarUseIt->second.hasFlag(PVF_LoopVar)) {
+        LLVM_DEBUG(llvm::dbgs() << "Handle: " << Var->getName()
+                                << " (implicit) initialising loop variable "
+                                << InitedVar->getName() << '\n');
+        for (Chain &C : CIt->second) {
+          LLVM_DEBUG(llvm::dbgs() << "Marking chain of len " << C.size()
+                                  << " non-1st-elidable\n");
+          C.markFirstElementNonElidable();
+        }
+
+        Chains[Var]; // Mark Var (the implicit!) visited.
+        LLVM_DEBUG(llvm::dbgs() << "buildChainsFrom <<<<<<< returning.\n");
+        return;
+      }
+    }
+
     // Now after the recursion ended, the "tails" of the chains starting from
     // InitedVar should be calculated. How to combine these into a chain of
     // [Var, InitedVar, ...]?
@@ -187,6 +208,11 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
       NewChain->markFirstElementNonElidable();
     }
 
+    if (UIt->second.hasFlag(PVF_LoopVar))
+      // A loop variable cannot be refactored out of a chain, so any chain in it
+      // should be marked with a non-elidable head.
+      NewChain->markFirstElementNonElidable();
+
     // Store the calculated chain.
     Chains[Var].emplace_back(std::move(*NewChain));
   }
@@ -198,7 +224,6 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
 
 void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
     const UsageMap &Usages) {
-  // const LangOptions &LOpts = getLangOpts();
   ChainMap Chains{Usages.size()};
   for (const auto &Usage : Usages)
     buildChainsFrom(Usages, Chains, Usage.first);

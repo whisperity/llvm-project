@@ -10,57 +10,70 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
+#include "llvm/Support/Format.h"
+
+#define DEBUG_TYPE "RedundantPtr"
+#include "llvm/Support/Debug.h"
+
 using namespace clang::ast_matchers;
 
 namespace clang {
 namespace tidy {
 namespace readability {
-static const char InitedVarId[] = "inited-var";
-static const char UsedPtrId[] = "used-ptr";
-static const char DereferencedPtrId[] = "deref-ptr";
+
+static const char UsedVarId[] = "used-var";
 static const char DerefUsageExprId[] = "usage-stmt";
-static const char PtrGuardId[] = "ptr-guard";
+static const char DereferencedVarId[] = "deref-var";
+static const char InitedVarId[] = "inited-var";
+static const char GuardId[] = "guard";
 static const char EarlyReturnStmtId[] = "early-ret";
 
 namespace matchers {
 
-// FIXME: Don't match loop variables of any kind as they can't be elided.
+static const auto LoopLike = stmt(anyOf(forStmt(), cxxForRangeStmt()));
+static const auto HasLoopParent = varDecl(
+    anyOf(hasParent(LoopLike), hasParent(declStmt(hasParent(LoopLike)))));
 
-/// Matches pointer-type variables that are local to the function.
-static const auto PointerLocalVarDecl =
+/*static const auto DereferenceableType =
+  recordType(hasDeclaration(cxxRecordDecl(
+  anyOf(hasMethod(hasOverloadedOperatorName("*")),
+  hasMethod(hasOverloadedOperatorName("->"))))
+  ))*/
+
+static const auto PointerLikeVarDecl =
     varDecl(hasInitializer(expr()),
             anyOf(hasType(pointerType()),
                   hasType(autoType(hasDeducedType(pointerType())))),
             unless(parmVarDecl()));
 
-/// Matches every usage of a local pointer variable.
-static const auto PtrVarUsage = declRefExpr(to(PointerLocalVarDecl));
+/// Matches every usage of a local pointer-like variable.
+static const auto VarUsage = declRefExpr(to(PointerLikeVarDecl));
 
-static const auto PtrDereference = stmt(anyOf(
-    memberExpr(isArrow(), hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
-        .bind(DerefUsageExprId),
-    unaryOperator(hasOperatorName("*"),
-                  hasDescendant(PtrVarUsage.bind(DereferencedPtrId)))
-        .bind(DerefUsageExprId)));
+static const auto Dereference = stmt(
+    anyOf(memberExpr(isArrow(), hasDescendant(VarUsage.bind(DereferencedVarId)))
+              .bind(DerefUsageExprId),
+          unaryOperator(hasOperatorName("*"),
+                        hasDescendant(VarUsage.bind(DereferencedVarId)))
+              .bind(DerefUsageExprId)));
 
 /// Matches construction expressions which "trivially" initialise something from
 /// a pointer.
-static const auto ConstructExprWithPtrDereference =
+static const auto ConstructExprWithDereference =
     ignoringElidableConstructorCall(
-        cxxConstructExpr(argumentCountIs(1), hasArgument(0, PtrDereference)));
+        cxxConstructExpr(argumentCountIs(1), hasArgument(0, Dereference)));
 
-static const auto VarInitFromPtrDereference =
+static const auto VarInitFromDereference =
     varDecl(anyOf(hasInitializer(ignoringParenImpCasts(anyOf(
                       // Directly initialise from dereference: int i = p->i
-                      PtrDereference,
+                      Dereference,
                       // Assign-initialise through ctor: T t = p->t;
-                      ConstructExprWithPtrDereference,
+                      ConstructExprWithDereference,
                       initListExpr(hasDescendant(
                           // Aggregate initialise: S s = {p->i};
-                          PtrDereference))))),
+                          Dereference))))),
                   hasDescendant(
                       // Initialise with ctor call: T t(p->t);
-                      expr(ConstructExprWithPtrDereference))))
+                      expr(ConstructExprWithDereference))))
         .bind(InitedVarId);
 
 static const auto FlowBreakingStmt =
@@ -74,14 +87,14 @@ static const auto FlowBreakingStmt =
 /// Trivial example of findings:
 ///     if (P) return;
 ///     if (!P) { continue; }
-static const auto PtrGuard =
-    ifStmt(hasCondition(allOf(hasDescendant(PtrVarUsage.bind(UsedPtrId)),
-                              unless(hasDescendant(PtrDereference)))),
+static const auto Guard =
+    ifStmt(hasCondition(allOf(hasDescendant(VarUsage.bind(UsedVarId)),
+                              unless(hasDescendant(Dereference)))),
            hasThen(anyOf(FlowBreakingStmt,
                          compoundStmt(statementCountIs(1),
                                       hasAnySubstatement(FlowBreakingStmt)))),
            unless(hasElse(stmt())))
-        .bind(PtrGuardId);
+        .bind(GuardId);
 
 } // namespace matchers
 
@@ -93,9 +106,9 @@ public:
 #define ASTNODE_FROM_MACRO(N) N->getSourceRange().getBegin().isMacroID()
   void run(const MatchFinder::MatchResult &Result) override {
     // PointerPtrUsages:
-    if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(PtrGuardId)) {
+    if (const auto *GuardIf = Result.Nodes.getNodeAs<IfStmt>(GuardId)) {
       const auto *FlowStmt = Result.Nodes.getNodeAs<Stmt>(EarlyReturnStmtId);
-      const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId);
+      const auto *DRefExpr = Result.Nodes.getNodeAs<DeclRefExpr>(UsedVarId);
       const auto *RefPtrVar = cast<VarDecl>(DRefExpr->getDecl());
 
       if (ASTNODE_FROM_MACRO(GuardIf) || ASTNODE_FROM_MACRO(FlowStmt) ||
@@ -112,7 +125,7 @@ public:
 
     if (const auto *VarInit = Result.Nodes.getNodeAs<VarDecl>(InitedVarId)) {
       const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
-      DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId);
+      DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedVarId);
       const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
       if (ASTNODE_FROM_MACRO(VarInit) || ASTNODE_FROM_MACRO(DerefExpr) ||
           ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar))
@@ -120,7 +133,7 @@ public:
 
       Added = Usages[RefPtrVar].addUsage(
           new PtrDerefVarInit{DRE, DerefExpr, VarInit});
-    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedPtrId))) {
+    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(DereferencedVarId))) {
       const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
       const auto *DerefExpr = Result.Nodes.getNodeAs<Expr>(DerefUsageExprId);
       if (ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar) ||
@@ -128,13 +141,16 @@ public:
         return;
 
       Added = Usages[RefPtrVar].addUsage(new PtrDereference{DRE, DerefExpr});
-    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedPtrId))) {
+    } else if ((DRE = Result.Nodes.getNodeAs<DeclRefExpr>(UsedVarId))) {
       const auto *RefPtrVar = cast<VarDecl>(DRE->getDecl());
       if (ASTNODE_FROM_MACRO(DRE) || ASTNODE_FROM_MACRO(RefPtrVar))
         return;
 
       Added = Usages[RefPtrVar].addUsage(new PtrArgument{DRE});
     }
+
+    // Save potential bit flags of the pointer-like variable.
+    calculateVarDeclFlags(cast<VarDecl>(DRE->getDecl()));
 
     // If a new usage is added when ptr-only usage lexically after the usage is
     // found (due to ptr-only usage statements matching earlier, and their
@@ -153,6 +169,27 @@ public:
 
 private:
   RedundantPointerCheck::UsageMap Usages;
+
+  void calculateVarDeclFlags(const VarDecl *Var) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "calculateVarDeclFlags(" << Var->getName() << ")\n");
+    using namespace matchers;
+
+    LLVM_DEBUG(llvm::dbgs()
+               << llvm::format_hex(Usages[Var].flags(), 3) << '\n');
+    if (Usages[Var].flags() != PVF_None)
+      // Only allow calculating the flags once per variable.
+      return;
+
+    if (!match(HasLoopParent, *Var, Var->getASTContext()).empty()) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Var " << Var->getName() << " is a loop variable.\n");
+      Usages[Var].flags() |= PVF_LoopVar;
+    }
+
+    LLVM_DEBUG(llvm::dbgs()
+               << llvm::format_hex(Usages[Var].flags(), 3) << '\n');
+  }
 
   template <typename PtrOnlyUseTy>
   SourceLocation getAlreadyFoundPtrUsageLocation(const VarDecl *PtrVar) {
@@ -204,16 +241,16 @@ void RedundantPointerCheck::registerMatchers(MatchFinder *Finder) {
 
   // Set up the callbacks for the modelling callback instance.
   Finder->addMatcher(declRefExpr(unless(isExpansionInSystemHeader()),
-                                 matchers::PtrVarUsage.bind(UsedPtrId)),
+                                 matchers::VarUsage.bind(UsedVarId)),
                      UsageCB);
   Finder->addMatcher(
-      stmt(unless(isExpansionInSystemHeader()), matchers::PtrDereference),
+      stmt(unless(isExpansionInSystemHeader()), matchers::Dereference),
       UsageCB);
   Finder->addMatcher(varDecl(unless(isExpansionInSystemHeader()),
-                             matchers::VarInitFromPtrDereference),
+                             matchers::VarInitFromDereference),
                      UsageCB);
   Finder->addMatcher(
-      ifStmt(unless(isExpansionInSystemHeader()), matchers::PtrGuard), UsageCB);
+      ifStmt(unless(isExpansionInSystemHeader()), matchers::Guard), UsageCB);
 }
 
 void RedundantPointerCheck::forAllCollected() {

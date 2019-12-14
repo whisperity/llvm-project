@@ -73,6 +73,10 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
+    if (Usage.second.hasFlag(PVF_LoopVar))
+      // Ignore loop variables, as they can not be factored out sensibly.
+      continue;
+
     const VarDecl *PtrVar = Usage.first;
     const UsageCollection::UseVector &PointeeUsages =
         Usage.second.getUsagesOfKind<PointeePtrUsage>();
