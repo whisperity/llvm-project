@@ -300,7 +300,7 @@ void UsageCollection::removeUsage(const PtrUsage *UsageInfo) {
   }
 }
 
-UsageCollection::UsageCollection(UsageCollection &&UC) {
+UsageCollection::UsageCollection(UsageCollection &&UC) : Flags(UC.Flags) {
   CollectedUses.insert(CollectedUses.end(), UC.CollectedUses.begin(),
                        UC.CollectedUses.end());
   UC.CollectedUses.clear();
@@ -310,6 +310,7 @@ UsageCollection &UsageCollection::operator=(UsageCollection &&UC) {
   if (&UC == this)
     return *this;
 
+  Flags = UC.Flags;
   CollectedUses.insert(CollectedUses.end(), UC.CollectedUses.begin(),
                        UC.CollectedUses.end());
   UC.CollectedUses.clear();
