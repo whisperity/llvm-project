@@ -73,8 +73,10 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
   const LangOptions &LOpts = getLangOpts();
 
   for (const auto &Usage : Usages) {
-    if (Usage.second.hasFlag(PVF_LoopVar))
-      // Ignore loop variables, as they can not be factored out sensibly.
+    if (!Usage.second.hasFlag(PVF_Initialiser) ||
+        Usage.second.hasFlag(PVF_LoopVar) || Usage.second.hasFlag(PVF_ParmVar))
+      // Variables of loops, function arguments or those without initialisers
+      // can't be reasonably suggested a rewrite for by this check.
       continue;
 
     const VarDecl *PtrVar = Usage.first;

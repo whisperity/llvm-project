@@ -165,15 +165,15 @@ private:
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 enum PtrVarFlags {
-  PVF_None = 0x000,
-  PVF_Pointer = 0x001,         //< Conventional pointer.
-  PVF_Dereferenceable = 0x010, //< User type that is dereferenceable,
-                               //< like an iterator.
+  PVF_None = 0x00000,
+  PVF_Pointer = 0x00001,         //< Conventional pointer.
+  PVF_Dereferenceable = 0x00010, //< User type that is dereferenceable,
+                                 //< such as an iterator.
+  PVF_LoopVar = 0x00100,         //< Loop variable.
+  PVF_ParmVar = 0x01000,         //< Variable is parameter to the function.
+  PVF_Initialiser = 0x10000,     //< Pointer has an initialising expression.
 
-  // Indicate that the variable itself cannot be rewritten or eliminated.
-  PVF_LoopVar = 0x100, //< Loop variable.
-
-  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ PVF_LoopVar)
+  LLVM_MARK_AS_BITMASK_ENUM(/* LargestValue = */ PVF_Initialiser)
 };
 
 /// Holds information about usages (expressions that reference) of a

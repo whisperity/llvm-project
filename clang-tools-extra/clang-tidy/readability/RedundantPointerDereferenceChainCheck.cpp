@@ -208,9 +208,11 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
       NewChain->markFirstElementNonElidable();
     }
 
-    if (UIt->second.hasFlag(PVF_LoopVar))
-      // A loop variable cannot be refactored out of a chain, so any chain in it
-      // should be marked with a non-elidable head.
+    if (!UIt->second.hasFlag(PVF_Initialiser) ||
+        UIt->second.hasFlag(PVF_LoopVar) || UIt->second.hasFlag(PVF_ParmVar))
+      // A variable without a declared initialiser, a loop variable or function
+      // parameter cannot be factored out of a chain, so any chain in it should
+      // be marked with a non-elidable head.
       NewChain->markFirstElementNonElidable();
 
     // Store the calculated chain.

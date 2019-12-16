@@ -337,3 +337,11 @@ void ignore_function_parameters(T *t22 = nullptr) {
   T *t22n = t22->tp;
   // NO-WARN: Function parms should be ignored as they can't be refactored.
 }
+
+int ignore_ptrs_without_init() {
+  T *t23;
+  T *t23n = t23->tp;
+  return t23n->i + t23n->i;
+  // NO-WARN: t23 does not have an initialiser expression, and thus can't be
+  // rewritten.
+}

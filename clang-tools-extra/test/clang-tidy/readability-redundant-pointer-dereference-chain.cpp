@@ -339,16 +339,13 @@ void foreach_loop_variable(const std::vector<T *> V) {
   // CHECK-MESSAGES: :[[@LINE-7]]:17: note: contains a dereference of 'tItnn' in initialisation of 'tItnnn'
 }
 
-// FIXME: Argument handling.
-#if 0
 void chain_from_argument(T *t12) {
   T *t12n = t12->f;
   T *t12nn = t12n->f;
   T *t12nnn = t12nn->f;
-  // FIXME: :[[@LINE-1]]:6: warning: 't12nnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
-  // FIXME: :[[@LINE-5]]:29: note: chain begins with 't12', but that variable cannot be elided
-  // FIXME: :[[@LINE-5]]:13: note: contains a dereference of 't12' in initialisation of 't12n'
-  // FIXME: :[[@LINE-5]]:14: note: contains a dereference of 't12n' in initialisation of 't12nn'
-  // FIXME: :[[@LINE-5]]:15: note: contains a dereference of 't12nn' in initialisation of 't12nnn'
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't12nnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-5]]:29: note: chain begins with 't12', but that variable cannot be elided
+  // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't12' in initialisation of 't12n'
+  // CHECK-MESSAGES: :[[@LINE-5]]:14: note: contains a dereference of 't12n' in initialisation of 't12nn'
+  // CHECK-MESSAGES: :[[@LINE-5]]:15: note: contains a dereference of 't12nn' in initialisation of 't12nnn'
 }
-#endif

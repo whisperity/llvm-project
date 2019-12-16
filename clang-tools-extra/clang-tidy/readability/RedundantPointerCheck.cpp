@@ -40,11 +40,8 @@ static const auto HasLoopParent = varDecl(
   hasMethod(hasOverloadedOperatorName("->"))))
   ))*/
 
-static const auto PointerLikeVarDecl =
-    varDecl(hasInitializer(expr()),
-            anyOf(hasType(pointerType()),
-                  hasType(autoType(hasDeducedType(pointerType())))),
-            unless(parmVarDecl()));
+static const auto PointerLikeVarDecl = varDecl(anyOf(
+    hasType(pointerType()), hasType(autoType(hasDeducedType(pointerType())))));
 
 /// Matches every usage of a local pointer-like variable.
 static const auto VarUsage = declRefExpr(to(PointerLikeVarDecl));
@@ -185,6 +182,18 @@ private:
       LLVM_DEBUG(llvm::dbgs()
                  << "Var " << Var->getName() << " is a loop variable.\n");
       Usages[Var].flags() |= PVF_LoopVar;
+    }
+
+    if (isa<ParmVarDecl>(Var)) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Var " << Var->getName() << " is an argument.\n");
+      Usages[Var].flags() |= PVF_ParmVar;
+    }
+
+    if (Var->getInit()) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Var " << Var->getName() << " has an initialiser.\n");
+      Usages[Var].flags() |= PVF_Initialiser;
     }
 
     LLVM_DEBUG(llvm::dbgs()
