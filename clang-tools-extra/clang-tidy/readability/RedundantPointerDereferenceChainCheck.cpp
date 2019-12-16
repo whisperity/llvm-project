@@ -266,8 +266,8 @@ void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
         continue;
 
       diag(Chain.last()->getLocation(),
-           "%0 initialised from dereference chain of %1 pointers, %2 only "
-           "used in a single dereference")
+           "%0 initialised from dereference chain of %1 variables, "
+           "%2 only used in a single dereference")
           << Chain.last() << static_cast<unsigned>(Chain.size() - 1)
           << (Chain.firstElementElidable() ? "each" : "most");
 

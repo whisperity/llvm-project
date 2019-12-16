@@ -30,18 +30,22 @@ static const char EarlyReturnStmtId[] = "early-ret";
 
 namespace matchers {
 
-static const auto LoopLike = stmt(anyOf(forStmt(), cxxForRangeStmt()));
-static const auto HasLoopParent = varDecl(
-    anyOf(hasParent(LoopLike), hasParent(declStmt(hasParent(LoopLike)))));
+static const auto DereferenceableType =
+    cxxRecordDecl(anyOf(hasMethod(cxxMethodDecl(hasOverloadedOperatorName("*"),
+                                                parameterCountIs(0))),
+                        hasMethod(cxxMethodDecl(hasOverloadedOperatorName("->"),
+                                                parameterCountIs(0)))));
 
-/*static const auto DereferenceableType =
-  recordType(hasDeclaration(cxxRecordDecl(
-  anyOf(hasMethod(hasOverloadedOperatorName("*")),
-  hasMethod(hasOverloadedOperatorName("->"))))
-  ))*/
-
-static const auto PointerLikeVarDecl = varDecl(anyOf(
+static const auto PointerVarDecl = varDecl(anyOf(
     hasType(pointerType()), hasType(autoType(hasDeducedType(pointerType())))));
+
+static const auto DereferenceableVarDecl =
+    varDecl(anyOf(hasType(DereferenceableType),
+                  hasType(autoType(hasDeducedType(
+                      recordType(hasDeclaration(DereferenceableType)))))));
+
+static const auto PointerLikeVarDecl =
+    anyOf(PointerVarDecl, DereferenceableVarDecl);
 
 /// Matches every usage of a local pointer-like variable.
 static const auto VarUsage = declRefExpr(to(PointerLikeVarDecl));
@@ -92,6 +96,11 @@ static const auto Guard =
                                       hasAnySubstatement(FlowBreakingStmt)))),
            unless(hasElse(stmt())))
         .bind(GuardId);
+
+static const auto LoopLike = stmt(anyOf(forStmt(), cxxForRangeStmt()));
+
+static const auto HasLoopParent = varDecl(
+    anyOf(hasParent(LoopLike), hasParent(declStmt(hasParent(LoopLike)))));
 
 } // namespace matchers
 
@@ -178,6 +187,16 @@ private:
       // Only allow calculating the flags once per variable.
       return;
 
+    if (!match(PointerVarDecl, *Var, Var->getASTContext()).empty()) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "Var " << Var->getName() << " is a pointer.\n");
+      Usages[Var].flags() |= PVF_Pointer;
+    } else {
+      LLVM_DEBUG(llvm::dbgs() << "Var " << Var->getName()
+                              << " is a * or -> capable record.\n");
+      Usages[Var].flags() |= PVF_Dereferenceable;
+    }
+
     if (!match(HasLoopParent, *Var, Var->getASTContext()).empty()) {
       LLVM_DEBUG(llvm::dbgs()
                  << "Var " << Var->getName() << " is a loop variable.\n");
@@ -197,7 +216,7 @@ private:
     }
 
     LLVM_DEBUG(llvm::dbgs()
-               << llvm::format_hex(Usages[Var].flags(), 3) << '\n');
+               << llvm::format_hex(Usages[Var].flags(), 5) << '\n');
   }
 
   template <typename PtrOnlyUseTy>

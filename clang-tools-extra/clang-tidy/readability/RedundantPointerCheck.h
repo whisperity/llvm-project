@@ -229,7 +229,7 @@ public:
   using UsageMap = llvm::DenseMap<const VarDecl *, UsageCollection>;
 
   RedundantPointerCheck(StringRef Name, ClangTidyContext *Context);
-  virtual ~RedundantPointerCheck();
+  ~RedundantPointerCheck() override;
 
   void registerMatchers(ast_matchers::MatchFinder *Finder) override;
   void check(const ast_matchers::MatchFinder::MatchResult &Result) final {

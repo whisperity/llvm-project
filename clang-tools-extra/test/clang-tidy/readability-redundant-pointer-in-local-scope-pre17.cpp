@@ -9,6 +9,18 @@ struct vector {
   T *begin() const;
   T *end() const;
 };
+
+template <typename T>
+struct list {
+  struct iterator {
+    T &operator*() const;
+    T *operator->() const;
+    iterator operator++() const;
+  };
+
+  iterator begin() const;
+  iterator end() const;
+};
 } // namespace std
 
 class T {
@@ -178,7 +190,7 @@ void single_checked_initialising_dereference() {
   // CHECK-MESSAGES: :[[@LINE-5]]:6: warning: local pointer variable 't14' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-3]]:11: note: usage: 't14' dereferenced in the initialisation of 'i'
   // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 't14' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting the pointer 't14', the branch, and the assignment of 'i' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-8]]:6: note: consider putting 't14', the branch, and the assignment of 'i' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_1() {
@@ -198,7 +210,7 @@ void single_checked_ctor_initialising_dereference_2a() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't16' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 't16' dereferenced in the initialisation of 'HDa'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't16' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't16', the branch, and the assignment of 'HDa' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting 't16', the branch, and the assignment of 'HDa' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2b() {
@@ -209,7 +221,7 @@ void single_checked_ctor_initialising_dereference_2b() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't17' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't17' dereferenced in the initialisation of 'HDb'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't17' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't17', the branch, and the assignment of 'HDb' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting 't17', the branch, and the assignment of 'HDb' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2c() {
@@ -220,7 +232,7 @@ void single_checked_ctor_initialising_dereference_2c() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't18' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:18: note: usage: 't18' dereferenced in the initialisation of 'HDc'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't18' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't18', the branch, and the assignment of 'HDc' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting 't18', the branch, and the assignment of 'HDc' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_2d() {
@@ -231,7 +243,7 @@ void single_checked_ctor_initialising_dereference_2d() {
   // CHECK-MESSAGES: :[[@LINE-4]]:6: warning: local pointer variable 't19' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:23: note: usage: 't19' dereferenced in the initialisation of 'ta'
   // CHECK-MESSAGES: :[[@LINE-5]]:3: note: the value of 't19' is guarded by this branch, resulting in 'return'
-  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting the pointer 't19', the branch, and the assignment of 'ta' into an inner scope (between {brackets})
+  // CHECK-MESSAGES: :[[@LINE-7]]:6: note: consider putting 't19', the branch, and the assignment of 'ta' into an inner scope (between {brackets})
 }
 
 void single_checked_ctor_initialising_dereference_3a() {
@@ -270,13 +282,12 @@ const char *test_get_value() {
 }
 
 struct HasStaticMember {
-  const char *getMember() { return StrM; /* Usage point. */ }
+  const char *getMember() { return StrM; } // Usage point.
   // NO-WARN: The declaration referred by the usage point does not have an initialiser.
 private:
-  static const char *StrM; /* Referenced VarDecl. */
+  static const char *StrM; // Referenced VarDecl.
 };
-
-const char *HasStaticMember::StrM = "Hello Member!";
+const char *HasStaticMember::StrM = "Hello Member!"; // Initialiser.
 
 int dereference_is_not_a_guard() {
   T *t21 = create<T>();
@@ -344,4 +355,20 @@ int ignore_ptrs_without_init() {
   return t23n->i + t23n->i;
   // NO-WARN: t23 does not have an initialiser expression, and thus can't be
   // rewritten.
+}
+
+int match_dereferenceables(const std::list<T> &L) {
+  typename std::list<T>::iterator LIt = L.begin();
+  T *LItn = LIt->tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:35: warning: local dereferenceable variable 'LIt' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:13: note: usage: 'LIt' dereferenced in the initialisation of 'LItn'
+  // CHECK-MESSAGES: :[[@LINE-3]]:13: note: consider using the code that initialises 'LIt' here
+}
+
+int match_dereferenceables_auto(const std::list<T> &L) {
+  auto LIt2 = L.begin();
+  T *LIt2n = LIt2->tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'LIt2' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:14: note: usage: 'LIt2' dereferenced in the initialisation of 'LIt2n'
+  // CHECK-MESSAGES: :[[@LINE-3]]:14: note: consider using the code that initialises 'LIt2' here
 }

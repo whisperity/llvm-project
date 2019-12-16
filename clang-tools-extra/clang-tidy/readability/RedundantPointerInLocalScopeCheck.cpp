@@ -102,7 +102,7 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
     std::string PtrVarInitExprCode = getVarInitExprCode(
         PtrVar, PtrVar->getASTContext(), /* OuterParen =*/true);
     if (PtrVarInitExprCode == "()")
-      // If we don't know how the pointer variable is initialised, bail out.
+      // If we don't know how the variable is initialised, bail out.
       continue;
 
     if (const auto *DerefForVarInit = dyn_cast<PtrDerefVarInit>(TheUsage)) {
@@ -115,7 +115,7 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
           // default-constructed.
           continue;
 
-      emitMainDiagnostic(PtrVar);
+      emitMainDiagnostic(PtrVar, Usage.second.flags());
       diag(TheUseExpr->getLocation(),
            "usage: %0 dereferenced in the initialisation of %1",
            DiagnosticIDs::Note)
@@ -135,11 +135,10 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
           // for an allocation, would immediately cause a memory leak.
           // FIXME: Perhaps don't warn for this all the time and hide it behind
           //        an option?
-          diag(
-              PtrVar->getLocation(),
-              "consider putting the pointer %0, the branch, and the assignment "
-              "of %1 into an inner scope (between {brackets})",
-              DiagnosticIDs::Note)
+          diag(PtrVar->getLocation(),
+               "consider putting %0, the branch, and the assignment "
+               "of %1 into an inner scope (between {brackets})",
+               DiagnosticIDs::Note)
               << PtrVar << InitedVar;
         } else if (LOpts.CPlusPlus17) {
           bool FixItSuccess =
@@ -168,7 +167,7 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
         // reasonably rewritten.
         continue;
 
-      emitMainDiagnostic(PtrVar);
+      emitMainDiagnostic(PtrVar, Usage.second.flags());
 
       const char *UsageDescription;
       if (isa<PtrDereference>(TheUsage))
@@ -186,11 +185,17 @@ void RedundantPointerInLocalScopeCheck::onEndOfModelledChunk(
 
 /// Helper function that emits the main "local ptr variable may be redundant"
 /// warning for the given variable.
-void RedundantPointerInLocalScopeCheck::emitMainDiagnostic(const VarDecl *Ptr) {
-  // FIXME: Mention visibility.
-  diag(Ptr->getLocation(), "local pointer variable %0 might be "
+void RedundantPointerInLocalScopeCheck::emitMainDiagnostic(const VarDecl *Ptr,
+                                                           PtrVarFlags Flags) {
+  const char *KindStr = "<unknown>";
+  if (Flags & PVF_Pointer)
+    KindStr = "pointer";
+  else if (Flags & PVF_Dereferenceable)
+    KindStr = "dereferenceable";
+
+  diag(Ptr->getLocation(), "local %0 variable %1 might be "
                            "redundant as it is only used once")
-      << Ptr <<
+      << KindStr << Ptr <<
       // Create a "dummy" FixIt (changing the var's name to itself). This is
       // done so that later FixIt hints (offered as suggestions) do NOT get
       // applied if '--fix' is specified to Tidy.
@@ -302,12 +307,11 @@ bool RedundantPointerInLocalScopeCheck::tryEmitPtrDerefInitGuardRewrite(
        VarInitCode + "})" + ", void(), false" + Twine(')'))
           .str();
 
-  auto Diag =
-      diag(Guard->getGuardStmt()->getIfLoc(),
-           "consider scoping the pointer %0 into the branch, and assign to %1 "
-           "during the guarding condition",
-           DiagnosticIDs::Note)
-      << Ptr << InitedVar;
+  auto Diag = diag(Guard->getGuardStmt()->getIfLoc(),
+                   "consider scoping %0 into the branch, and assign to %1 "
+                   "during the guarding condition",
+                   DiagnosticIDs::Note)
+              << Ptr << InitedVar;
   if (CouldCreateFixIt)
     Diag << FixItHint::CreateReplacement(
         Guard->getGuardStmt()->getCond()->getSourceRange(),
@@ -316,7 +320,7 @@ bool RedundantPointerInLocalScopeCheck::tryEmitPtrDerefInitGuardRewrite(
   return CouldCreateFixIt;
 }
 
-/// Create a replacement on the pointer variable to the result type.
+/// Create a replacement on the variable to the result type.
 /// We wish to transform:
 ///     T *p;
 ///     int i = p->foo();

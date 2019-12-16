@@ -8,6 +8,18 @@ struct vector {
   T *begin() const;
   T *end() const;
 };
+
+template <typename T>
+struct list {
+  struct iterator {
+    T &operator*() const;
+    T *operator->() const;
+    iterator operator++() const;
+  };
+
+  iterator begin() const;
+  iterator end() const;
+};
 } // namespace std
 
 struct S {
@@ -65,7 +77,7 @@ void chain_len2() {
   T *t2 = talloc();
   T *t2n = t2->f;
   T *t2nn = t2n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't2nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't2nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 't2'
   // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 't2' in initialisation of 't2n'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 't2n' in initialisation of 't2nn'
@@ -75,7 +87,7 @@ void chain_len2_use() {
   T *t3 = talloc();
   T *t3n = t3->f;
   T *t3nn = t3n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't3nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't3nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 't3'
   // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 't3' in initialisation of 't3n'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 't3n' in initialisation of 't3nn'
@@ -86,7 +98,7 @@ void chain_len2_deref() {
   T *t4 = talloc();
   T *t4n = t4->f;
   T *t4nn = t4n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't4nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't4nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 't4'
   // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 't4' in initialisation of 't4n'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 't4n' in initialisation of 't4nn'
@@ -101,7 +113,7 @@ void chain_len2_1guard() {
     return;
   T *t5n = t5->f;
   T *t5nn = t5n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't5nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't5nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-6]]:6: note: chain begins with 't5'
   // FIXME: :[[@LINE-6]]:3: note: 't5' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 't5' in initialisation of 't5n'
@@ -116,7 +128,7 @@ void chain_len2_2guard() {
   if (!t6n)
     return;
   T *t6nn = t6n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't6nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't6nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't6'
   // FIXME: :[[@LINE-8]]:3: note: 't6' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't6' in initialisation of 't6n'
@@ -132,7 +144,7 @@ void chain_len2_2guard_use() {
   if (!t7n)
     return;
   T *t7nn = t7n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't7nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't7nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't7'
   // FIXME: :[[@LINE-8]]:3: note: 't7' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't7' in initialisation of 't7n'
@@ -149,7 +161,7 @@ void chain_len2_2guard_deref() {
   if (!t8n)
     return;
   T *t8nn = t8n->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't8nn' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't8nn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-8]]:6: note: chain begins with 't8'
   // FIXME: :[[@LINE-8]]:3: note: 't8' is guarded by this branch
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 't8' in initialisation of 't8n'
@@ -163,7 +175,7 @@ void chain_len3() {
   T *t9n = t9->f;
   T *t9nn = t9n->f;
   T *t9nnn = t9nn->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't9nnn' initialised from dereference chain of 3 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't9nnn' initialised from dereference chain of 3 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-5]]:6: note: chain begins with 't9'
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 't9' in initialisation of 't9n'
   // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't9n' in initialisation of 't9nn'
@@ -175,7 +187,7 @@ void chain_len3_use() {
   T *t10n = t10->f;
   T *t10nn = t10n->f;
   T *t10nnn = t10nn->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't10nnn' initialised from dereference chain of 3 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't10nnn' initialised from dereference chain of 3 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-5]]:6: note: chain begins with 't10'
   // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't10' in initialisation of 't10n'
   // CHECK-MESSAGES: :[[@LINE-5]]:14: note: contains a dereference of 't10n' in initialisation of 't10nn'
@@ -188,7 +200,7 @@ void chain_len3_deref() {
   T *t11n = t11->f;
   T *t11nn = t11n->f;
   T *t11nnn = t11nn->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't11nnn' initialised from dereference chain of 3 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't11nnn' initialised from dereference chain of 3 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-5]]:6: note: chain begins with 't11'
   // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't11' in initialisation of 't11n'
   // CHECK-MESSAGES: :[[@LINE-5]]:14: note: contains a dereference of 't11n' in initialisation of 't11nn'
@@ -200,14 +212,14 @@ void multiple_chains_nouse() {
   T *mc1a = talloc();
   T *mc1b = mc1a->f;
   T *mc1c = mc1b->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1c' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1c' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 'mc1a'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1a' in initialisation of 'mc1b'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1b' in initialisation of 'mc1c'
 
   U *mc1u = mc1c->a;
   Q *mc1q = mc1u->x;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1q' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1q' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-9]]:6: note: chain begins with 'mc1c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1c' in initialisation of 'mc1u'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1u' in initialisation of 'mc1q'
@@ -217,7 +229,7 @@ void multiple_chains_nouse() {
 
   U *mc1u2 = mc1c->b;
   W *mc1w = mc1u2->y;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1w' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc1w' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-19]]:6: note: chain begins with 'mc1c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:14: note: contains a dereference of 'mc1c' in initialisation of 'mc1u2'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc1u2' in initialisation of 'mc1w'
@@ -227,21 +239,21 @@ void multiple_chains_use() {
   T *mc2a = talloc();
   T *mc2b = mc2a->f;
   T *mc2c = mc2b->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2c' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2c' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 'mc2a'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2a' in initialisation of 'mc2b'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2b' in initialisation of 'mc2c'
 
   U *mc2u = mc2c->a;
   Q *mc2q = mc2u->x;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2q' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2q' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-9]]:6: note: chain begins with 'mc2c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2c' in initialisation of 'mc2u'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2u' in initialisation of 'mc2q'
 
   U *mc2u2 = mc2c->b;
   W *mc2w = mc2u2->y;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2w' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc2w' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-16]]:6: note: chain begins with 'mc2c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:14: note: contains a dereference of 'mc2c' in initialisation of 'mc2u2'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc2u2' in initialisation of 'mc2w'
@@ -254,14 +266,14 @@ void multiple_chains_deref() {
   T *mc3a = talloc();
   T *mc3b = mc3a->f;
   T *mc3c = mc3b->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc3c' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc3c' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 'mc3a'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc3a' in initialisation of 'mc3b'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc3b' in initialisation of 'mc3c'
 
   U *mc3u = mc3c->a;
   Q *mc3q = mc3u->x;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc3q' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'mc3q' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-9]]:6: note: chain begins with 'mc3c', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc3c' in initialisation of 'mc3u'
   // CHECK-MESSAGES: :[[@LINE-4]]:13: note: contains a dereference of 'mc3u' in initialisation of 'mc3q'
@@ -277,7 +289,7 @@ void multiple_chain_different_usages() {
   T *bt1 = talloc();
   T *bt2 = bt1->f;
   T *bt3 = bt2->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'bt3' initialised from dereference chain of 2 pointers, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 'bt3' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-4]]:6: note: chain begins with 'bt1'
   // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 'bt1' in initialisation of 'bt2'
   // CHECK-MESSAGES: :[[@LINE-4]]:12: note: contains a dereference of 'bt2' in initialisation of 'bt3'
@@ -285,7 +297,7 @@ void multiple_chain_different_usages() {
   U *bu = bt3->a;
   W *bw = bu->y;
   std::free(bw);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bw' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bw' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-10]]:6: note: chain begins with 'bt3', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bt3' in initialisation of 'bu'
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bu' in initialisation of 'bw'
@@ -293,7 +305,7 @@ void multiple_chain_different_usages() {
   U *bu2 = bt3->b;
   Q *bq = bu2->x;
   bq;
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bq' initialised from dereference chain of 2 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bq' initialised from dereference chain of 2 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-18]]:6: note: chain begins with 'bt3', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-5]]:12: note: contains a dereference of 'bt3' in initialisation of 'bu2'
   // CHECK-MESSAGES: :[[@LINE-5]]:11: note: contains a dereference of 'bu2' in initialisation of 'bq'
@@ -303,7 +315,7 @@ void multiple_chain_different_usages() {
   T *bt5 = bt4->f;
   U *bu4 = bt5->a;
   std::free(bu4->t);
-  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bu4' initialised from dereference chain of 4 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-2]]:6: warning: 'bu4' initialised from dereference chain of 4 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-28]]:6: note: chain begins with 'bt3', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bt3' in initialisation of 'bu3'
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: contains a dereference of 'bu3' in initialisation of 'bt4'
@@ -318,7 +330,7 @@ void loop_variable(const std::vector<T *> V) {
     T *tpnnn = tpnn->f;
     std::free(tpnnn->a);
   }
-  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tpnnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tpnnn' initialised from dereference chain of 3 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-7]]:12: note: chain begins with 'tp', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-7]]:16: note: contains a dereference of 'tp' in initialisation of 'tpn'
   // CHECK-MESSAGES: :[[@LINE-7]]:15: note: contains a dereference of 'tpn' in initialisation of 'tpnn'
@@ -332,7 +344,7 @@ void foreach_loop_variable(const std::vector<T *> V) {
     T *tItnnn = tItnn->f;
     std::free(tItnnn->a);
   }
-  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tItnnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-3]]:8: warning: 'tItnnn' initialised from dereference chain of 3 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-7]]:19: note: chain begins with 'tIt', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-7]]:15: note: contains a dereference of 'tIt' in initialisation of 'tItn'
   // CHECK-MESSAGES: :[[@LINE-7]]:16: note: contains a dereference of 'tItn' in initialisation of 'tItnn'
@@ -343,9 +355,19 @@ void chain_from_argument(T *t12) {
   T *t12n = t12->f;
   T *t12nn = t12n->f;
   T *t12nnn = t12nn->f;
-  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't12nnn' initialised from dereference chain of 3 pointers, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-1]]:6: warning: 't12nnn' initialised from dereference chain of 3 variables, most only used in a single dereference [readability-redundant-pointer-dereference-chain]
   // CHECK-MESSAGES: :[[@LINE-5]]:29: note: chain begins with 't12', but that variable cannot be elided
   // CHECK-MESSAGES: :[[@LINE-5]]:13: note: contains a dereference of 't12' in initialisation of 't12n'
   // CHECK-MESSAGES: :[[@LINE-5]]:14: note: contains a dereference of 't12n' in initialisation of 't12nn'
   // CHECK-MESSAGES: :[[@LINE-5]]:15: note: contains a dereference of 't12nn' in initialisation of 't12nnn'
+}
+
+void chain_from_dereferenceable(const std::list<T> &L) {
+  auto lIt = L.begin();
+  auto lItn = lIt->f;
+  auto lItnn = lItn->f;
+  // CHECK-MESSAGES: :[[@LINE-1]]:8: warning: 'lItnn' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-4]]:8: note: chain begins with 'lIt'
+  // CHECK-MESSAGES: :[[@LINE-4]]:15: note: contains a dereference of 'lIt' in initialisation of 'lItn'
+  // CHECK-MESSAGES: :[[@LINE-4]]:16: note: contains a dereference of 'lItn' in initialisation of 'lItnn'
 }

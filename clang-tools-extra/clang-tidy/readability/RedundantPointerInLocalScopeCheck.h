@@ -28,7 +28,7 @@ protected:
   void onEndOfModelledChunk(const UsageMap &Usages) override;
 
 private:
-  void emitMainDiagnostic(const VarDecl *Ptr);
+  void emitMainDiagnostic(const VarDecl *Ptr, PtrVarFlags Flags);
   void emitConsiderUsingInitCodeDiagnostic(const VarDecl *Ptr,
                                            const PtrUsage *Usage,
                                            const std::string &InitCode);
