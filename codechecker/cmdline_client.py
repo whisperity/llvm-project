@@ -1,5 +1,3 @@
-import subprocess
-
 from .command_builder import get_json_output
 
 CHECKER_NAME = 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'

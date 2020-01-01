@@ -32,14 +32,14 @@ def pick(options, prompt=None):
 def __main(product_url=None, project=None, all_runs=False):
     cmdline_client.set_product(product_url)
 
-    vCheck, V = check_version.check_version()
-    if not vCheck:
+    vcheck, ver = check_version.check_version()
+    if not vcheck:
         print("Error: Version %s CodeChecker required, but got %s"
-              % (check_version.REQUIRED_VERSION, V),
+              % (check_version.REQUIRED_VERSION, ver),
               file=sys.stderr)
         sys.exit(2)
 
-    projects = cmdline_client.get_projects()#[:1]
+    projects = cmdline_client.get_projects()
     if not all_runs and not project:
         projects = [pick(projects, "Project")]
     elif project:
@@ -63,8 +63,8 @@ def __register_args():
                            "CodeChecker server to connect to. If empty, "
                            "will use the default provided by CodeChecker.")
 
-    RUNS = ARGS.add_mutually_exclusive_group(required=False)
-    RUNS.add_argument('-a', '--all',
+    runs = ARGS.add_mutually_exclusive_group(required=False)
+    runs.add_argument('-a', '--all',
                       dest='all_runs',
                       action='store_true',
                       default=False,
@@ -72,7 +72,7 @@ def __register_args():
                       help="Do measurement for all stored projects. If not "
                            "specified, the user is interactively prompted to "
                            "select.")
-    RUNS.add_argument('-n', '--name', '--project', '--project-name',
+    runs.add_argument('-n', '--name', '--project', '--project-name',
                       dest='project',
                       type=str,
                       required=False,

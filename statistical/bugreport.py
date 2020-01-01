@@ -5,6 +5,10 @@ PATTERN_EXACT_TYPE = re.compile(r"similar type \('(.*?)'\)")
 PATTERN_TYPEDEF = re.compile(r"type of argument '.*?' is '(.*?)'")
 PATTERN_BINDPOWER = re.compile(
     r"'(.*?)' might bind with same force as '(.*?)'")
+PATTERN_IMPLICIT_BIDIR = re.compile(
+    r"'(.*?)' and '(.*?)' can suffer implicit")
+PATTERN_IMPLICIT_UNIDIR = re.compile(
+    r"'(.*?)' can be implicitly converted (from|to) '(.*?)'")
 
 
 def _match_all_to_list(pattern, string):
@@ -26,9 +30,12 @@ class BugReport:
         def _dump():
             print(json.dumps(report, sort_keys=True, indent=2))
 
+        # These values are elaborated later.
         self.has_typedef = False
         self.has_bindpower = False
         self.has_ref_bind = False
+        self.has_implicit_bidir = False
+        self.has_implicit_unidir = False
 
         # Output format for
         # 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'
@@ -46,7 +53,14 @@ class BugReport:
         assert(bool(self.exact_type) == self.is_exact)
 
         steps = [e['msg'] for e in report['details']['pathEvents']]
-        # print(json.dumps(report, sort_keys=True, indent=4))
+        # Ignore first ("last argument in range" marker) and last (the
+        # check message) "bug path steps".
+        steps = steps[1:-1]
+        if self.is_implicit:
+            # Unique the steps as implicit conversion emits a diagnostic for
+            # each implicitly convertible pair, which e.g. for (int, int, long)
+            # is like 3 messages (int<->int, int<->long, int<->long).
+            steps = list(set(steps))
 
         if not self.exact_type:
             self.has_typedef = any('after resolving type aliases' in step
@@ -55,11 +69,18 @@ class BugReport:
                                      for step in steps)
 
             for step in steps[1:-1]:
-                # Ignore first ("last argument in range" marker) and last (the
-                # check message) "bug path steps".
                 types_for_step = \
                     _match_all_to_list(PATTERN_TYPEDEF, step) + \
                     _match_all_to_list(PATTERN_BINDPOWER, step)
+
+                if self.is_implicit:
+                    bidirs = _match_all_to_list(PATTERN_IMPLICIT_BIDIR, step)
+                    unidirs = _match_all_to_list(PATTERN_IMPLICIT_UNIDIR, step)
+                    if bidirs:
+                        self.has_implicit_bidir = True
+                    if unidirs:
+                        self.has_implicit_unidir = True
+                    types_for_step += bidirs + unidirs
 
                 if any(t.endswith(' &') for t in types_for_step):
                     self.has_ref_bind = True

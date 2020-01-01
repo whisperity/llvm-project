@@ -10,7 +10,7 @@ from .bugreport import BugReport
 def handle_configuration(project, min_length, cvr=False, implicit=False):
     try:
         results = cmdline_client.get_results(project, min_length, cvr, implicit)
-    except cmdline_client.NoRunException as nre:
+    except cmdline_client.NoRunException:
         raise
 
     reports = [BugReport(report) for report in results]
@@ -18,7 +18,7 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     print("**Total number of findings: `%d`**\n" % len(reports))
 
     lengths = [R.length for R in reports]
-    lengths_count = {x:lengths.count(x) for x in lengths}
+    lengths_count = {x: lengths.count(x) for x in lengths}
     print("Length distribution for the project:\n")
     print("~~~~\n%s\n~~~~" % json.dumps(lengths_count, sort_keys=True, indent=1))
 
@@ -35,20 +35,40 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
              bpmin, q1, med, q3, bpmax,
              "Outliers above: %s" % outliers_max if outliers_max else ''))
 
-    print("\n * Number of trivials (adjacent arguments with exact same type): "
-          "%d" % len([1 for R in reports if R.is_exact]))
-    print(" * Number of non-trivials: "
-          "%d" % len([1 for R in reports if not R.is_exact]))
-    print("    * Number of reports involving a `typedef`: "
-          "%d" % len([1 for R in reports if R.has_typedef]))
-    len_bind = len([1 for R in reports if R.has_bindpower])
-    len_ref_bind = len([1 for R in reports if R.has_ref_bind])
-    print("    * Number of reports involving a bind power (CVR or `&`): "
-          "%d" % len_bind)
-    print("        * Number of reports involving a reference (`&`) bind: "
-          "%d" % len_ref_bind)
-    print("    * Number of reports involving implicit conversions: "
-          "%d" % len([1 for R in reports if R.is_implicit]))
+    print("\n### Breakdown of findings")
+
+    def _finding_breakdown(range_length=None):
+        reps = [R for R in reports if R.length == range_length] \
+            if range_length else reports
+        print("\n * Number of trivials (adjacent arguments with *exact same* type): "
+              "%d" % len([1 for R in reps if R.is_exact]))
+        print(" * Number of non-trivials: "
+              "%d" % len([1 for R in reps if not R.is_exact]))
+        print("    * Number of reports involving a `typedef`: "
+              "%d" % len([1 for R in reps if R.has_typedef]))
+        len_bind = len([1 for R in reps if R.has_bindpower])
+        len_ref_bind = len([1 for R in reps if R.has_ref_bind])
+        print("    * Number of reports involving a bind power (CVR or `&`): "
+              "%d" % len_bind)
+        print("        * Number of reports involving a reference (`&`) bind: "
+              "%d" % len_ref_bind)
+        print("    * Number of reports involving implicit conversions: "
+              "%d" % len([1 for R in reps if R.is_implicit]))
+        print("        * Number of reports with any **bidirectional** implicity: "
+              "%d" % len([1 for R in reps if R.has_implicit_bidir]))
+        print("        * Number of reports with any **unidirectional** implicity: "
+              "%d" % len([1 for R in reps if R.has_implicit_unidir]))
+
+    print("#### Entire project")
+    _finding_breakdown(None)
+    for length in range(min_length, max(lengths) + 1):
+        print("\n#### For reports of length `%d`" % length)
+        if length not in lengths_count.keys():
+            print("No findings of this length.")
+        else:
+            _finding_breakdown(length)
+
+    # TODO: Categorise and detail the types involved.
 
 
 def __try_configuration(prompt, project, min_length, cvr=False, implicit=False):

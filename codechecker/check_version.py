@@ -1,5 +1,3 @@
-import json
-import subprocess
 from distutils.version import StrictVersion
 
 from .command_builder import get_json_output
