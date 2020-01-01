@@ -43,4 +43,4 @@ To run the analysis easily:
 To run the measurement scripts:
 
  * CodeChecker as discussed above
- * `pip install percol`
+ * `pip install percol scipy`

@@ -2,6 +2,7 @@ import subprocess
 
 from .command_builder import get_json_output
 
+CHECKER_NAME = 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'
 PRODUCT = None
 
 
@@ -37,9 +38,17 @@ def format_run_name(project, min_length=2, cvr=False, implicit=False):
                               '-imp' if implicit else '')
 
 
+class NoRunException(Exception):
+    def __init__(self, run_name):
+        super(Exception, self).__init__("No run with the name: %s!" % run_name)
+
+
 def get_results(project, min_length, cvr, implicit):
     run_name = format_run_name(project, min_length, cvr, implicit)
     if run_name not in __RUNS:
-        raise KeyError("No run %s found!" % run_name)
+        raise NoRunException(run_name)
 
-    return get_json_output(['cmd', 'results', run_name, '--details'], PRODUCT)
+    return get_json_output(['cmd', 'results', run_name,
+                            '--details',
+                            '--checker-name', CHECKER_NAME],
+                           PRODUCT)
