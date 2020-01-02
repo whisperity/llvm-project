@@ -174,7 +174,7 @@ class BugReport:
             else:
                 uncategorised.append(
                     "%s%s" % (t, ' ' + '*' * ptr_depth if ptr_depth else ''))
-                category += "<unknown>"
+                category += "unknown?"
             ret.append(category)
 
         return ret, uncategorised

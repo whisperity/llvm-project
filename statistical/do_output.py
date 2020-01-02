@@ -63,9 +63,10 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
               "implicity: %d"
               % len([1 for R in reps if R.has_implicit_unidir]))
 
+    def _type_breakdown():
         print()
         involved_type_categs, uncategorisable_types = list(), list()
-        for R in reps:
+        for R in reports:
             categories, uncategorised = R.get_involved_types_categories()
             involved_type_categs += categories
             uncategorisable_types += uncategorised
@@ -87,12 +88,14 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
 
     print("#### Entire project")
     _finding_breakdown(None)
-    # for length in range(min_length, max(lengths) + 1):
-    #     print("\n#### For reports of length `%d`" % length)
-    #     if length not in lengths_count.keys():
-    #         print("No findings of this length.")
-    #     else:
-    #         _finding_breakdown(length)
+    _type_breakdown()
+
+    for length in range(min_length, max(lengths) + 1):
+        print("\n#### For reports of length `%d`" % length)
+        if length not in lengths_count.keys():
+            print("No findings of this length.")
+        else:
+            _finding_breakdown(length)
 
 
 def __try_configuration(prompt, project, min_length,
