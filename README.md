@@ -22,8 +22,8 @@ To run the analysis easily:
 
 To run the measurement scripts:
 
- * CodeChecker as discussed above
- * `pip install percol`
+ * `CodeChecker` as discussed above
+ * `pip install percol scipy`
 
 
 Execute action
@@ -85,3 +85,10 @@ Start `__main__.py`.
 
 > See the `--help` option on extra arguments, such as overriding *product-URL*
 > if needed)
+
+Results are emitted to the *standard output* in *Markdown* format.
+You can save the results by piping the output to a file:
+
+~~~~{.sh}
+python3 __main__.py >output.md
+~~~~
