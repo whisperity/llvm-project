@@ -9,7 +9,8 @@ from .bugreport import BugReport
 
 def handle_configuration(project, min_length, cvr=False, implicit=False):
     try:
-        results = cmdline_client.get_results(project, min_length, cvr, implicit)
+        results = cmdline_client.get_results(project, min_length,
+                                             cvr, implicit)
     except cmdline_client.NoRunException:
         raise
 
@@ -41,8 +42,8 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     def _finding_breakdown(range_length=None):
         reps = [R for R in reports if R.length == range_length] \
             if range_length else reports
-        print("\n * Number of trivials (adjacent arguments with *exact same* type): "
-              "%d" % len([1 for R in reps if R.is_exact]))
+        print("\n * Number of trivials (adjacent arguments with "
+              "*exact same* type): %d" % len([1 for R in reps if R.is_exact]))
         print(" * Number of non-trivials: "
               "%d" % len([1 for R in reps if not R.is_exact]))
         print("    * Number of reports involving a `typedef`: "
@@ -55,10 +56,12 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
               "%d" % len_ref_bind)
         print("    * Number of reports involving implicit conversions: "
               "%d" % len([1 for R in reps if R.is_implicit]))
-        print("        * Number of reports with any **bidirectional** implicity: "
-              "%d" % len([1 for R in reps if R.has_implicit_bidir]))
-        print("        * Number of reports with any **unidirectional** implicity: "
-              "%d" % len([1 for R in reps if R.has_implicit_unidir]))
+        print("        * Number of reports with any **bidirectional** "
+              "implicity: %d"
+              % len([1 for R in reps if R.has_implicit_bidir]))
+        print("        * Number of reports with any **unidirectional** "
+              "implicity: %d"
+              % len([1 for R in reps if R.has_implicit_unidir]))
 
         print()
         involved_type_categs, uncategorisable_types = list(), list()
@@ -92,7 +95,8 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     #         _finding_breakdown(length)
 
 
-def __try_configuration(prompt, project, min_length, cvr=False, implicit=False):
+def __try_configuration(prompt, project, min_length,
+                        cvr=False, implicit=False):
     head = "Configuration: %s" % prompt
     print("\n%s" % head)
     print("-" * len(head) + '\n')

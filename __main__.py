@@ -15,7 +15,8 @@ ARGS = argparse.ArgumentParser(
 
 def pick(options, prompt=None):
     try:
-        proc = subprocess.run(["percol", '--auto-match', '--match-method=regex'] +
+        proc = subprocess.run(["percol",
+                               '--auto-match', '--match-method=regex'] +
                               (['--prompt=' + prompt + '> %q']
                                if prompt else []),
                               encoding='utf8',
@@ -77,9 +78,9 @@ def __register_args():
                       dest='project',
                       type=str,
                       required=False,
-                      help="The project to run the tool for. If not specified, "
-                           "and '--all' isn't specified either, the user is "
-                           "interactively prompted.")
+                      help="The project to run the tool for. If not "
+                           "specified, and '--all' isn't specified either, "
+                           "the user is interactively prompted.")
 
 
 if __name__ == '__main__':

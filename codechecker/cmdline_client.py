@@ -25,7 +25,8 @@ def get_projects():
 
 def minimum_length_for_project(project):
     runs_for_project = filter(lambda s: s.startswith(project), __RUNS)
-    length_tags = map(lambda s: s.split('__')[1].split('-')[0], runs_for_project)
+    length_tags = map(lambda s: s.split('__')[1].split('-')[0],
+                      runs_for_project)
     lengths = map(lambda s: int(s.replace('len', '')), length_tags)
     return min(lengths)
 

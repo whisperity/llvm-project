@@ -116,13 +116,14 @@ class BugReport:
 
                 self.involved_types += types_for_step
 
-
-        self.involved_types = {sanitise_typename(t) for t in set(self.involved_types)}
+        self.involved_types = {sanitise_typename(t)
+                               for t in set(self.involved_types)}
 
         if not self.involved_types:
             print("[WARNING] For the following report, 'involved_types' "
                   "remained empty?!", file=sys.stderr)
-            print(json.dumps(report, sort_keys=True, indent=2), file=sys.stderr)
+            print(json.dumps(report, sort_keys=True, indent=2),
+                  file=sys.stderr)
 
     def get_involved_types_categories(self):
         """
