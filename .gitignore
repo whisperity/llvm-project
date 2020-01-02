@@ -130,3 +130,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Ignore the automated outputs of the script
+Reports/
+execute-analysis/TestProjects/
+execute-analysis/Reports-AA/

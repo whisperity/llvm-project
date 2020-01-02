@@ -1,19 +1,26 @@
 #!/bin/bash
 
-CODECHECKER=$(which CodeChecker)
-if [ -z ${CODECHECKER} ]
+JOBS=$(nproc)
+
+PRODUCT_URL="http://localhost:8001/Default"
+if [ $# -eq 1 -a ! -z "$1" ]
+then
+  PRODUCT_URL="$1"
+  echo "Using CodeChecker product URL ${PRODUCT_URL}." >&2
+fi
+
+if [ -z $(which CodeChecker) ]
 then
 	echo "No CodeChecker!" >&2
 	exit 1
 fi
 
-PRODUCT_URL="localhost:8001/Default"
-JOBS=$(nproc)
 
 MAIN_DIR=$(pwd)
 CONFIGURATIONS=$(fd 'aa-.*.txt' -d 1 ./)
 
 pushd ./TestProjects
+
 for BJSON in $(fd compile_commands.json -d 2 -H -I ./)
 do
 	echo -n "Running for "
@@ -57,4 +64,5 @@ do
 		fi
 	done
 done
+
 popd

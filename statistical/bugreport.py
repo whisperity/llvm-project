@@ -142,7 +142,7 @@ class BugReport:
 
             if t == 'void' and ptr_depth or \
                     t in ['ArrayRef', 'uintptr_t', 'BUFFER', 'Buffer']:
-                category = "buffer (void* or templated)"
+                category = "buffer (void-ptr or templated)"
             elif t == 'FILE' and ptr_depth == 1:
                 category = "C File"
             elif t in ['bool', '_Bool', 'short', 'int', 'long',
@@ -168,7 +168,7 @@ class BugReport:
                 if ptr_depth > 1:
                     category += "strings"
                 elif ptr_depth == 1:
-                    category = "strings of buffer (char*)"
+                    category = "strings of buffer (char-ptr)"
                 else:
                     category += "fundamental integral"
             else:

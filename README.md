@@ -25,6 +25,11 @@ To run the measurement scripts:
  * `CodeChecker` as discussed above
  * `pip install percol scipy tabulate`
 
+To format the output to HTML:
+
+ * The measurement script's requirements discussed above
+ * `sudo apt install pandoc`
+
 
 Execute action
 --------------
@@ -64,9 +69,8 @@ Execute action
      * Autotools/Makefile projects can use
        [`CodeChecker log`](http://codechecker.readthedocs.io/en/latest/analyzer/user_guide/#log)
        to register build commands.
- * Start a CodeChecker server (the script uses the default
-   `localhost:8001/Default` product) on the machine and leave it running during
-   the process.
+ * Start a CodeChecker server on the machine and leave it running during the
+   process.
  * Execute `run-aa.sh`, which will run the analysis for each projects for each
    configuration, and store the results to the server.
 
@@ -90,5 +94,8 @@ Results are emitted to the *standard output* in *Markdown* format.
 You can save the results by piping the output to a file:
 
 ~~~~{.sh}
-python3 __main__.py >output.md
+python3 __main__.py > output.md
 ~~~~
+
+To format results into HTML reports, one per *project* on the server, execute
+`html-report.sh`.
