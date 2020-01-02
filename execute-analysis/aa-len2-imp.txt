@@ -1,0 +1,1 @@
+-config='{CheckOptions: [{key: cppcoreguidelines-avoid-adjacent-arguments-of-same-type.MinimumLength, value: 2}, {key: cppcoreguidelines-avoid-adjacent-arguments-of-same-type.CVRMixPossible, value: 0}, {key: cppcoreguidelines-avoid-adjacent-arguments-of-same-type.ImplicitConversion, value: 1}]}'
