@@ -22,8 +22,8 @@ def get_json_output(args, product_url=None):
             # No output from process, consider it empty JSON.
             return []
 
-        print("[ERROR] Command", command, "executed but returned invalid JSON:",
-              file=sys.stderr)
+        print("[ERROR] Command", command, "executed but returned invalid "
+              "JSON:", file=sys.stderr)
         print(jsonde, file=sys.stderr)
         print("[DEBUG] The process output was:", process.stdout,
               file=sys.stderr)

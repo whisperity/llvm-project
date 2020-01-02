@@ -143,27 +143,33 @@ class BugReport:
             if t == 'void' and ptr_depth or \
                     t in ['ArrayRef', 'uintptr_t', 'BUFFER', 'Buffer']:
                 category = "buffer (void-ptr or templated)"
+            elif re.search(r'[\d]$', t):
+                category += "buffer (C-style array)"
             elif t == 'FILE' and ptr_depth == 1:
                 category = "C File"
-            elif t in ['bool', '_Bool', 'short', 'int', 'long',
-                       'long long', 'size_t']:
+            elif t in ['bool', '_Bool', 'boolean', 'short', 'int', 'long',
+                       'long long', 'size_t', 'ssize_t', 'ptrdiff_t']:
                 category += "fundamental integral"
             elif t in ['BOOL', 'int8', 'int8_t', 'uint8', 'uint8_t',
                        'char16_t', 'int16', 'int16_t', 'uint16', 'uint16_t',
                        'int32', 'int32_t', 'uint32', 'uint32_t', 'int64',
                        'int64_t', 'uint64', 'uint64_t', 'uint256', '__m128i',
-                       '__m256i', 'quint64', 'uchar', 'u_char',
-                       'uint', 'u_int']:
+                       '__m256', '__m256i', '__m512i', 'quint64',
+                       'uchar', 'u_char', 'uint', 'u_int', 'ushort', 'uInt',
+                       'uint_fast32_t', 'uint_fast64_t',
+                       'GLboolean', 'GLenum', 'GLint', 'GLsizei', 'GLuint']:
                 category += "custom integral"
-            elif t in ['SOCKET'] or (t.startswith('Q') and t[1:].istitle()):
+            elif t in ['SOCKET', 'time_t'] \
+                    or (t.startswith('Q') and t[1:].istitle()):
                 category += "framework type"
             elif t in ['float', 'double', 'long double']:
                 category += "fundamental floating"
-            elif t in ['float4', 'float8', 'FPOINT']:
+            elif t in ['float4', 'float8', 'FPOINT', 'LONG_DOUBLE',
+                       'GLdouble', 'GLfloat']:
                 category += "custom floating"
             elif 'string' in t.lower() or t in ['Twine']:
                 category += "string-like"
-            elif t in ['const char', 'char']:
+            elif t in ['const char', 'char', 'schar', 'wchar_t']:
                 # NOTE: Outer pointer-ness potentially removed already.
                 if ptr_depth > 1:
                     category += "strings"
