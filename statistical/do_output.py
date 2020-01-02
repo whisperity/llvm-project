@@ -2,6 +2,7 @@ import json
 import sys
 import numpy
 from scipy import stats
+from tabulate import tabulate
 
 from codechecker import cmdline_client
 from .bugreport import BugReport
@@ -11,7 +12,7 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     try:
         results = cmdline_client.get_results(project, min_length,
                                              cvr, implicit)
-    except cmdline_client.NoRunException:
+    except cmdline_client.NoRunError:
         raise
 
     reports = [BugReport(report) for report in results]
@@ -97,6 +98,8 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
         else:
             _finding_breakdown(length)
 
+    return reports
+
 
 def __try_configuration(prompt, project, min_length,
                         cvr=False, implicit=False):
@@ -104,11 +107,13 @@ def __try_configuration(prompt, project, min_length,
     print("\n%s" % head)
     print("-" * len(head) + '\n')
     try:
-        handle_configuration(project, min_length, cvr, implicit)
-    except cmdline_client.NoRunException as nre:
+        reports = handle_configuration(project, min_length, cvr, implicit)
+        return len(reports)
+    except cmdline_client.NoRunError as nre:
         print("> **[ERROR]** This measurement was not (properly) stored to "
               "the server!")
         print(nre, file=sys.stderr)
+        return 0
 
 
 def handle(project):
@@ -122,10 +127,66 @@ def handle(project):
               "Potential shorter results were ignored during analysis and "
               "cannot be retrieved!" % min_arg_length)
 
-    __try_configuration("Normal analysis", project, min_arg_length)
-    __try_configuration("Generous `const`/`volatile`/`restrict` mixing",
-                        project, min_arg_length, cvr=True)
-    __try_configuration("Implicit conversions",
-                        project, min_arg_length, implicit=True)
-    __try_configuration("CVR mix *and* Implicit conversions",
-                        project, min_arg_length, cvr=True, implicit=True)
+    normal = __try_configuration("Normal analysis", project, min_arg_length)
+    cvr = __try_configuration("Generous `const`/`volatile`/`restrict` mixing",
+                              project, min_arg_length, cvr=True)
+    imp = __try_configuration("Implicit conversions",
+                              project, min_arg_length, implicit=True)
+    cvr_imp = __try_configuration("CVR mix *and* Implicit conversions",
+                                  project, min_arg_length,
+                                  cvr=True, implicit=True)
+
+    print("\nResult count and differences between modes")
+    print("------------------------------------------\n")
+
+    configurations = [("Normal", False, False),
+                      ("CVR", True, False),
+                      ("Imp", False, True),
+                      ("CVR + Imp", True, True)]
+    headers = ["\\"] + [c[0] for c in configurations]
+    rows = [["Total #", normal, cvr, imp, cvr_imp]]
+
+    for idx, conf in enumerate(configurations):
+        row = [conf[0]]
+        for idx2, conf2 in enumerate(configurations):
+            if idx > idx2:
+                row.append("/")
+                continue
+            if idx == idx2:
+                row.append("-")
+                continue
+
+            # Calculate the report counts of the diff between the
+            # configurations.
+            def _diff(direction):
+                return cmdline_client.get_difference(
+                    project,
+                    min_length_1=min_arg_length,
+                    min_length_2=min_arg_length,
+                    cvr_1=conf[1], implicit_1=conf[2],
+                    cvr_2=conf2[1], implicit_2=conf2[2],
+                    direction=direction)
+
+            try:
+                same = _diff(cmdline_client.FINDINGS_IN_BOTH)
+                new = _diff(cmdline_client.NEW_FINDINGS)
+                gone = _diff(cmdline_client.DISAPPEARED_FINDINGS)
+            except cmdline_client.NoRunError:
+                print("> **[ERROR]** The measurement for (%s, %d, %s, %s) was "
+                      "not (properly) stored to the server!"
+                      % (project, min_arg_length, conf[0], conf2[0]))
+                row.append("(error)")
+                continue
+
+            cell = list()
+            if same:
+                cell.append("**=** %d" % len(same))
+            if new:
+                cell.append("**+** %d" % len(new))
+            if gone:
+                cell.append("**-** %d" % len(gone))
+
+            row.append(', '.join(cell))
+        rows.append(row)
+
+    print(tabulate(rows, headers, tablefmt='github'))

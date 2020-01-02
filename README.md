@@ -23,7 +23,7 @@ To run the analysis easily:
 To run the measurement scripts:
 
  * `CodeChecker` as discussed above
- * `pip install percol scipy`
+ * `pip install percol scipy tabulate`
 
 
 Execute action
