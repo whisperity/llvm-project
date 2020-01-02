@@ -20,7 +20,8 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     lengths = [R.length for R in reports]
     lengths_count = {x: lengths.count(x) for x in lengths}
     print("Length distribution for the project:\n")
-    print("~~~~\n%s\n~~~~" % json.dumps(lengths_count, sort_keys=True, indent=1))
+    print("~~~~\n%s\n~~~~"
+          % json.dumps(lengths_count, sort_keys=True, indent=1))
 
     print("\nLength box-plot values:\n")
     q1, med, q3 = numpy.percentile(lengths, [25, 50, 75])
@@ -59,16 +60,36 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
         print("        * Number of reports with any **unidirectional** implicity: "
               "%d" % len([1 for R in reps if R.has_implicit_unidir]))
 
+        print()
+        involved_type_categs, uncategorisable_types = list(), list()
+        for R in reps:
+            categories, uncategorised = R.get_involved_types_categories()
+            involved_type_categs += categories
+            uncategorisable_types += uncategorised
+
+        type_categories_count = {c: involved_type_categs.count(c)
+                                 for c in involved_type_categs}
+        type_categories_count = sorted(type_categories_count.items(),
+                                       key=lambda item: item[1],
+                                       reverse=True)
+        print("Distribution of types involved in mixup:\n")
+        [print(' * %s: *%d*' % (categ, cnt))
+         for (categ, cnt) in type_categories_count]
+
+        if uncategorisable_types:
+            print("\n\n**[WARNING]** The following *types* from the reports "
+                  "were not categorised:\n")
+            [print(' * `%s`' % t)
+             for t in sorted(list(set(uncategorisable_types)))]
+
     print("#### Entire project")
     _finding_breakdown(None)
-    for length in range(min_length, max(lengths) + 1):
-        print("\n#### For reports of length `%d`" % length)
-        if length not in lengths_count.keys():
-            print("No findings of this length.")
-        else:
-            _finding_breakdown(length)
-
-    # TODO: Categorise and detail the types involved.
+    # for length in range(min_length, max(lengths) + 1):
+    #     print("\n#### For reports of length `%d`" % length)
+    #     if length not in lengths_count.keys():
+    #         print("No findings of this length.")
+    #     else:
+    #         _finding_breakdown(length)
 
 
 def __try_configuration(prompt, project, min_length, cvr=False, implicit=False):

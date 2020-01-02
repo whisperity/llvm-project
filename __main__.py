@@ -16,7 +16,8 @@ ARGS = argparse.ArgumentParser(
 def pick(options, prompt=None):
     try:
         proc = subprocess.run(["percol", '--auto-match', '--match-method=regex'] +
-                              (['--prompt=' + prompt + '> '] if prompt else []),
+                              (['--prompt=' + prompt + '> %q']
+                               if prompt else []),
                               encoding='utf8',
                               input='\n'.join(options),
                               stdout=subprocess.PIPE)
