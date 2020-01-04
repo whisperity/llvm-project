@@ -43,6 +43,8 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
     def _finding_breakdown(range_length=None):
         reps = [R for R in reports if R.length == range_length] \
             if range_length else reports
+        print("\n * Number of **unique** functions reported upon: %d"
+              % len({R.function_name for R in reps}))
         print("\n * Number of trivials (adjacent arguments with "
               "*exact same* type): %d" % len([1 for R in reps if R.is_exact]))
         print(" * Number of non-trivials: "

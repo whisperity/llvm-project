@@ -102,6 +102,8 @@ if __name__ == '__main__':
     projects = list()
     if not args.all_projects and not args.project:
         projects = [pick(all_projects, "Project")]
+    elif args.all_projects:
+        projects = all_projects
     elif args.project:
         if args.project in all_projects:
             projects = [args.project]

@@ -2,6 +2,7 @@ import json
 import re
 import sys
 
+PATTERN_FUNCTION_NAME = re.compile(r"^(\d+) adjacent arguments for '(.*?)' of")
 PATTERN_EXACT_TYPE = re.compile(r"similar type \('(.*?)'\)")
 PATTERN_TYPEDEF = re.compile(r"type of argument '.*?' is '(.*?)'")
 PATTERN_BINDPOWER = re.compile(
@@ -65,6 +66,9 @@ class BugReport:
         self.has_ref_bind = False
         self.has_implicit_bidir = False
         self.has_implicit_unidir = False
+
+        msg_match = PATTERN_FUNCTION_NAME.match(report['checkerMsg'])
+        self.length, self.function_name = int(msg_match[1]), msg_match[2]
 
         # Output format for
         # 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'
