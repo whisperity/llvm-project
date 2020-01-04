@@ -128,7 +128,7 @@ class BugReport:
     def get_involved_types_categories(self):
         """
         Categorises the types in `self.involved_types` and returns the
-        categories found in the order of entries in `involved_types`.
+        categories found.
         """
         ret = list()
         uncategorised = list()
