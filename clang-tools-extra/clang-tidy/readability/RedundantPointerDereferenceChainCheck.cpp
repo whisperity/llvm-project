@@ -264,6 +264,15 @@ void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
       if (Chain.size() < 3)
         // Chains of length 2 (single unused ptr) is handled by another check.
         continue;
+      if (Chain.hasPtrUsages()) {
+        for (const VarDecl *Var : Chain.range()) {
+          const auto &PtrUsages = getUsagesCast<PointerPtrUsage>(Usages, Var);
+          if (PtrUsages.size() > 1)
+            // If there is multiple pointer-only use for a pointer, the chain
+            // cannot be reasonably rewritten.
+            continue;
+        }
+      }
 
       diag(Chain.last()->getLocation(),
            "%0 initialised from dereference chain of %1 variables, "
@@ -281,6 +290,19 @@ void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
 
       for (size_t I = 1; I < Chain.size(); ++I) {
         const VarDecl *Var = Chain.at(I - 1);
+
+        if (Chain.hasPtrUsages()) {
+          const auto &PtrUsages = getUsagesCast<PointerPtrUsage>(Usages, Var);
+          if (!PtrUsages.empty()) {
+            if (const auto *PtrOnlyGuard =
+                    dyn_cast<PtrGuard>(PtrUsages.front())) {
+              diag(PtrOnlyGuard->getGuardStmt()->getIfLoc(),
+                   "%0 is guarded by this branch", DiagnosticIDs::Note)
+                  << Var;
+            }
+          }
+        }
+
         const VarDecl *InitedVar = Chain.at(I);
         LLVM_DEBUG(llvm::dbgs()
                    << "chain contains dereference of " << Var->getName()
@@ -296,21 +318,7 @@ void RedundantPointerDereferenceChainCheck::onEndOfModelledChunk(
              "contains a dereference of %0 in initialisation of %1",
              DiagnosticIDs::Note)
             << Var << InitedVar;
-
-#if 0
-        if (const auto* G = getOnlyUsage<PtrGuard>(Usages, VD))
-          diag(G->getGuardStmt()->getIfLoc(), "%0 is guarded by this branch",
-               DiagnosticIDs::Note)
-            << VD;
-#endif
       }
-
-#if 0
-      if (const auto *G = getOnlyUsage<PtrGuard>(Usages, E.first))
-        diag(G->getGuardStmt()->getIfLoc(), "%0 is guarded by this branch",
-             DiagnosticIDs::Note)
-            << E.first;
-#endif
     }
   }
 }
