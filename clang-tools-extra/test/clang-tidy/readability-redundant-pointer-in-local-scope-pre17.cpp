@@ -16,6 +16,9 @@ struct list {
     T &operator*() const;
     T *operator->() const;
     iterator operator++() const;
+
+    T &getObject() const;
+    T *getPtr() const;
   };
 
   iterator begin() const;
@@ -371,6 +374,32 @@ int match_dereferenceables_auto(const std::list<T> &L) {
   // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'LIt2' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
   // CHECK-MESSAGES: :[[@LINE-2]]:14: note: usage: 'LIt2' dereferenced in the initialisation of 'LIt2n'
   // CHECK-MESSAGES: :[[@LINE-3]]:14: note: consider using the code that initialises 'LIt2' here
+}
+
+void dereference_checks(const std::list<T> &L) {
+  auto ListIterator1 = L.begin();
+  T *ListMemberPtr = ListIterator1.getPtr();
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'ListIterator1' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:22: note: usage: 'ListIterator1' dereferenced in the initialisation of 'ListMemberPtr'
+  // CHECK-MESSAGES: :[[@LINE-3]]:22: note: consider using the code that initialises 'ListIterator1' here
+
+  auto ListIterator2 = L.begin();
+  const T &ListMember = ListIterator2.getObject();
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'ListIterator2' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:25: note: usage: 'ListIterator2' dereferenced in the initialisation of 'ListMember'
+  // CHECK-MESSAGES: :[[@LINE-3]]:25: note: consider using the code that initialises 'ListIterator2' here
+
+  auto ListIterator3 = L.begin();
+  T *ListNext = ListIterator3->tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'ListIterator3' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:17: note: usage: 'ListIterator3' dereferenced in the initialisation of 'ListNext'
+  // CHECK-MESSAGES: :[[@LINE-3]]:17: note: consider using the code that initialises 'ListIterator3' here
+
+  auto ListIterator4 = L.begin();
+  T *ListNext2 = (*ListIterator4).tp;
+  // CHECK-MESSAGES: :[[@LINE-2]]:8: warning: local dereferenceable variable 'ListIterator4' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:20: note: usage: 'ListIterator4' dereferenced in the initialisation of 'ListNext2'
+  // CHECK-MESSAGES: :[[@LINE-3]]:20: note: consider using the code that initialises 'ListIterator4' here
 }
 
 /* Reduced case from LLVM IteratorChecker. */
