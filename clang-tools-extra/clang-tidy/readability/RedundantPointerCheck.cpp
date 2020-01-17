@@ -50,9 +50,12 @@ static const auto PointerLikeVarDecl =
 /// Matches every usage of a local pointer-like variable.
 static const auto VarUsage = declRefExpr(to(PointerLikeVarDecl));
 
+static const auto VarUsingMemberExpr =
+    memberExpr(hasDescendant(VarUsage.bind(DereferencedVarId)));
+
 static const auto Dereference = stmt(
-    anyOf(memberExpr(isArrow(), hasDescendant(VarUsage.bind(DereferencedVarId)))
-              .bind(DerefUsageExprId),
+    anyOf(VarUsingMemberExpr.bind(DerefUsageExprId),
+          cxxMemberCallExpr(has(VarUsingMemberExpr)).bind(DerefUsageExprId),
           unaryOperator(hasOperatorName("*"),
                         hasDescendant(VarUsage.bind(DereferencedVarId)))
               .bind(DerefUsageExprId)));

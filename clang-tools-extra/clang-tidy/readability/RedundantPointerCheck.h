@@ -88,12 +88,16 @@ struct PtrArgument : PointeePtrUsage {
 ///     send_bytes(t->numBytes);
 ///     read((*t).rbuf);
 ///     dump(*t);
+///     something(ptr->func());
 struct PtrDereference : PointeePtrUsage {
   PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr)
       : PtrDereference(UsageRef, UsageExpr, Ptr_Dereference) {}
 
   const UnaryOperator *getUnaryOperator() const { return UnaryDeref; }
   const MemberExpr *getMemberExpr() const { return MemberRef; }
+  const CXXMemberCallExpr *getCallableMemberExpr() const {
+    return CallableMemberRef;
+  }
 
   static bool classof(const PtrUsage *I) {
     return I->getKind() >= Ptr_Dereference && I->getKind() <= Ptr_Deref_Init;
@@ -103,13 +107,16 @@ protected:
   PtrDereference(const DeclRefExpr *UsageRef, const Expr *UsageExpr, PUKind K)
       : PointeePtrUsage(UsageRef, K) {
     MemberRef = dyn_cast<MemberExpr>(UsageExpr);
+    CallableMemberRef = dyn_cast<CXXMemberCallExpr>(UsageExpr);
     UnaryDeref = dyn_cast<UnaryOperator>(UsageExpr);
 
-    assert((MemberRef || UnaryDeref) && "dereference usage must be t-> or *t");
+    assert((MemberRef || CallableMemberRef || UnaryDeref) &&
+           "dereference usage must be filled!");
   }
 
 private:
   const MemberExpr *MemberRef = nullptr;
+  const CXXMemberCallExpr *CallableMemberRef = nullptr;
   const UnaryOperator *UnaryDeref = nullptr;
 };
 
@@ -164,6 +171,7 @@ private:
 
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
+// FIXME: Use a smaller type (0x is hex literal, turn to bit shift!)
 enum PtrVarFlags {
   PVF_None = 0x00000,
   PVF_Pointer = 0x00001,         //< Conventional pointer.

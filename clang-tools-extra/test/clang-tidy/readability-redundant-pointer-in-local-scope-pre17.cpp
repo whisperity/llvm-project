@@ -372,3 +372,38 @@ int match_dereferenceables_auto(const std::list<T> &L) {
   // CHECK-MESSAGES: :[[@LINE-2]]:14: note: usage: 'LIt2' dereferenced in the initialisation of 'LIt2n'
   // CHECK-MESSAGES: :[[@LINE-3]]:14: note: consider using the code that initialises 'LIt2' here
 }
+
+/* Reduced case from LLVM IteratorChecker. */
+struct TemplateParamsRange {
+  unsigned size() const;
+  void *getParam(unsigned Index) const;
+};
+struct Template {
+  TemplateParamsRange *getTemplateParameters() const;
+};
+struct Function {
+  Template *getPrimaryTemplate() const;
+  void useForSomething() const;
+};
+Function *getFunction();
+
+void template_param() {
+  const auto *Func = getFunction();
+  Func->useForSomething();
+
+  const auto *Templ = Func->getPrimaryTemplate();
+  if (!Templ)
+    return;
+
+  const auto *TParams = Templ->getTemplateParameters();
+  // CHECK-MESSAGES: :[[@LINE-5]]:15: warning: local pointer variable 'Templ' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-2]]:25: note: usage: 'Templ' dereferenced in the initialisation of 'TParams'
+  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 'Templ' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-8]]:15: note: consider putting 'Templ', the branch, and the assignment of 'TParams' into an inner scope (between {brackets})
+
+  for (unsigned I = 0; I < TParams->size(); ++I) {
+  }
+  // CHECK-MESSAGES: :[[@LINE-8]]:15: warning: local pointer variable 'TParams' might be redundant as it is only used once [readability-redundant-pointer-in-local-scope]
+  // CHECK-MESSAGES: :[[@LINE-3]]:28: note: usage: 'TParams' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-4]]:28: note: consider using the code that initialises 'TParams' here
+}

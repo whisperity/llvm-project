@@ -133,6 +133,11 @@ static void buildChainsFrom(const UsageMap &Usages, ChainMap &Chains,
       UIt->second.getUsagesOfKind<PointeePtrUsage>();
   const UsageCollection::UseVector &PtrVarInitDerefs =
       UIt->second.getUsagesOfKind<PtrDerefVarInit>();
+  LLVM_DEBUG(llvm::dbgs() << "Var " << Var->getName() << " has ptr usage? "
+                          << HasPtrUsage
+                          << ", Poitee uses count: " << PointeeUsages.size()
+                          << ", init-deref count: " << PtrVarInitDerefs.size()
+                          << '\n');
   for (const PtrUsage *PU : PtrVarInitDerefs) {
     const VarDecl *InitedVar = cast<PtrDerefVarInit>(PU)->getInitialisedVar();
     LLVM_DEBUG(llvm::dbgs() << "Var used in initialisation of "

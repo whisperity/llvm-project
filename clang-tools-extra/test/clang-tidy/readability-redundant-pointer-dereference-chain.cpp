@@ -371,3 +371,33 @@ void chain_from_dereferenceable(const std::list<T> &L) {
   // CHECK-MESSAGES: :[[@LINE-4]]:15: note: contains a dereference of 'lIt' in initialisation of 'lItn'
   // CHECK-MESSAGES: :[[@LINE-4]]:16: note: contains a dereference of 'lItn' in initialisation of 'lItnn'
 }
+
+/* Reduced case from LLVM IteratorChecker. */
+struct TemplateParamsRange {
+  unsigned size() const;
+  void *getParam(unsigned Index) const;
+};
+struct Template {
+  TemplateParamsRange *getTemplateParameters() const;
+};
+struct Function {
+  Template *getPrimaryTemplate() const;
+  void useForSomething() const;
+};
+Function *getFunction();
+
+void template_param() {
+  const auto *Func = getFunction();
+  const auto *Templ = Func->getPrimaryTemplate();
+  if (!Templ)
+    return;
+
+  const auto *TParams = Templ->getTemplateParameters();
+  for (unsigned I = 0; I < TParams->size(); ++I) {
+  }
+  // CHECK-MESSAGES: :[[@LINE-3]]:15: warning: 'TParams' initialised from dereference chain of 2 variables, each only used in a single dereference [readability-redundant-pointer-dereference-chain]
+  // CHECK-MESSAGES: :[[@LINE-9]]:15: note: chain begins with 'Func'
+  // CHECK-MESSAGES: :[[@LINE-9]]:23: note: contains a dereference of 'Func' in initialisation of 'Templ'
+  // CHECK-MESSAGES: :[[@LINE-9]]:3: note: 'Templ' is guarded by this branch
+  // CHECK-MESSAGES: :[[@LINE-7]]:25: note: contains a dereference of 'Templ' in initialisation of 'TParams'
+}

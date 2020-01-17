@@ -277,3 +277,39 @@ void single_checked_ctor_initialising_dereference_3b() {
   HasDefault HD3b{t20->i, 1};
   // NO-WARN: The variable is not "directly" initialised from a pointer dereference as the constructor used takes multiple arguments.
 }
+
+/* Reduced case from LLVM IteratorChecker. */
+struct TemplateParamsRange {
+  unsigned size() const;
+  void *getParam(unsigned Index) const;
+};
+struct Template {
+  TemplateParamsRange *getTemplateParameters() const;
+};
+struct Function {
+  Template *getPrimaryTemplate() const;
+  void useForSomething() const;
+};
+Function *getFunction();
+
+void template_param() {
+  const auto *Func = getFunction();
+  Func->useForSomething();
+
+  const auto *Templ = Func->getPrimaryTemplate();
+  if (!Templ)
+    return;
+
+  const auto *TParams = Templ->getTemplateParameters();
+  // CHECK-MESSAGES: :[[@LINE-5]]:15: warning: local pointer variable 'Templ' might be redundant as it is only used once
+  // CHECK-MESSAGES: :[[@LINE-2]]:25: note: usage: 'Templ' dereferenced in the initialisation of 'TParams'
+  // CHECK-MESSAGES: :[[@LINE-6]]:3: note: the value of 'Templ' is guarded by this branch, resulting in 'return'
+  // CHECK-MESSAGES: :[[@LINE-8]]:15: note: consider declaring the variable 'TParams' (for the dereference's result) in the "outer" scope
+  // CHECK-MESSAGES: :[[@LINE-8]]:3: note: consider scoping 'Templ' into the branch, and assign to 'TParams' during the guarding condition
+  // CHECK-MESSAGES: :[[@LINE-6]]:15: note: after the changes, the definition for 'TParams' here is no longer needed
+  for (unsigned I = 0; I < TParams->size(); ++I) {
+  }
+  // CHECK-MESSAGES: :[[@LINE-9]]:15: warning: local pointer variable 'TParams' might be redundant as it is only used once
+  // CHECK-MESSAGES: :[[@LINE-3]]:28: note: usage: 'TParams' dereferenced here
+  // CHECK-MESSAGES: :[[@LINE-4]]:28: note: consider using the code that initialises 'TParams' here
+}
