@@ -40,6 +40,8 @@ static std::string getVarInitExprCode(const VarDecl *Var, const ASTContext &Ctx,
       .str();
 }
 
+// FIXME: Copy construction from the dereference result ("if (...; A = {*x})")
+//        should also be checked before we can say a rewrite is viable.
 static bool canBeDefaultConstructed(const CXXRecordDecl *RD) {
   assert(RD->hasDefinition() &&
          "for forward declarations the answer is unknown.");
