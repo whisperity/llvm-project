@@ -9,8 +9,8 @@ from statistical.do_output import handle
 
 ARGS = argparse.ArgumentParser(
     description="Emit numeric information about the analysis reports for the "
-                "'cppcoreguidelines-avoid-adjacent-arguments-of-same-type' "
-                "checker. The output is a Markdown formatted document.")
+                "'readability-redundant-pointer-' checkers. The output is a "
+                "Markdown formatted document.")
 
 
 def pick(options, prompt=None):
