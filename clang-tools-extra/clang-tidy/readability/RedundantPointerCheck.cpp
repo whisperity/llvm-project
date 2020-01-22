@@ -91,6 +91,8 @@ static const auto FlowBreakingStmt =
 /// Trivial example of findings:
 ///     if (P) return;
 ///     if (!P) { continue; }
+// FIXME: Don't match cases like "if (!somePredicate(ptr))" as it should be
+//        marked as a VarUsage!
 static const auto Guard =
     ifStmt(hasCondition(allOf(hasDescendant(VarUsage.bind(UsedVarId)),
                               unless(hasDescendant(Dereference)))),
