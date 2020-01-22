@@ -50,9 +50,6 @@ class RedundantPtrBugReport:
                     self.usage = self.VAR_INIT_DEREFERENCE
             elif "is guarded by this branch" in step:
                 self.guarded = True
-            else:
-                if step != report['checkerMsg'] and "fixit" not in step and "consider" not in step:
-                    print(step)
 
     @property
     def is_param_passing(self):
@@ -94,6 +91,3 @@ class ChainBugReport:
                 self.first_element_special = True
             elif "is guarded by this branch" in step:
                 self.guard_count += 1
-            else:
-                if step != report['checkerMsg'] and "chain begins with" not in step and "contains a dereference of" not in step:
-                    print(step)
