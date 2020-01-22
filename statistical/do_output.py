@@ -1,8 +1,5 @@
 import json
 import sys
-import numpy
-from scipy import stats
-from tabulate import tabulate
 
 from codechecker import cmdline_client
 from .bugreport import ChainBugReport, RedundantPtrBugReport

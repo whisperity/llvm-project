@@ -1,18 +1,8 @@
 import json
 import re
-import sys
 
 PATTERN_CHAIN_LENGTH = re.compile(
     r"initialised from dereference chain of (\d+) variables")
-
-def match_all_to_list(pattern, string):
-    out = list()
-    for res in pattern.findall(string):
-        if isinstance(res, tuple):
-            out += [x for x in res]
-        else:
-            out.append(res)
-    return out
 
 
 class RedundantPtrBugReport:

@@ -1,4 +1,4 @@
-`cppcoreguidelines-avoid-adjacent-arguments-of-same-type` measurement scripts
+`readability-redundant-pointer-*` measurement scripts
 =============================================================================
 
 
@@ -7,11 +7,10 @@ Prerequisites
 
 To be able to emit warnings for error-prone constructs:
 
- * `cppcoreguidelines-avoid-adjacent-arguments-of-same-type` checker patched
+ * `readability-redundant-pointer-` checker patched
    to *Clang-Tidy* and built according to LLVM Documentation.
-   * See other branches named
-     `clang-tidy/cppcoreguidelines-avoid-adjacent-arguments-of-same-type` in
-     this project for the code.
+   * See other branches named `clang-tidy/redundant-pointer` in this project
+     for the code.
    * Preferably use the branch that also models *implicit conversions*.
 
 To run the analysis easily:
@@ -23,7 +22,7 @@ To run the analysis easily:
 To run the measurement scripts:
 
  * `CodeChecker` as discussed above
- * `pip install percol scipy tabulate`
+ * `pip install percol`
 
 To format the output to HTML:
 
@@ -44,18 +43,10 @@ Execute action
    ~~~~
    --analyzers clang-tidy
    --disable Weverything
-   --enable cppcoreguidelines-avoid-adjacent-arguments-of-same-type
+   --enable readability-redundant-pointer-
    ~~~~
-   * Tweak the checker options `MinimumLength`, `CVRMixPossible` and
-     `ImplicitConversion` by specifying a `--tidyargs` file.
- * Store analysis results with the following nomenclature. These names are
-   **hard** requirements posed by the measurement script.
-   * `project__lenX`: `project` is the name of the project, `X` is the
-     `MinimumLength` value
-   * `project__lenX-cvr`: if `CVRMixPossible` was set to true (`1`)
-   * `project__lenX-imp`: if `ImplicitConversion` was set to true (`1`)
-   * `project__lenX-cvr-imp`: if both `CVRMixPossible` and `ImplicitConversion`
-     were set to true (`1`)
+ * Store analysis results with the run name being the project's name without any
+   spaces.
 
 ### Analysis (automatically)
 
@@ -71,8 +62,8 @@ Execute action
        to register build commands.
  * Start a CodeChecker server on the machine and leave it running during the
    process.
- * Execute `run-aa.sh`, which will run the analysis for each projects for each
-   configuration, and store the results to the server.
+ * Execute `run-ptr.sh`, which will run the analysis for each project,
+   and store the results to the server.
 
 Most projects rely on build artifacts generated *during the build* to build
 properly, so even if you used CMake to obtain the build database, it is
