@@ -38,7 +38,7 @@ do
 
 		CodeChecker analyze \
 			--analyzers clang-tidy \
-			--enable cppcoreguidelines-avoid-adjacent-arguments-of-same-type \
+			--enable experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type \
 			--disable Weverything \
 			--jobs ${JOBS} \
 			--tidyargs $(realpath --relative-to=$(pwd) "${MAIN_DIR}/${CFG}") \

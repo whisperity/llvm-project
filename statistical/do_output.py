@@ -8,10 +8,11 @@ from codechecker import cmdline_client
 from .bugreport import BugReport
 
 
-def handle_configuration(project, min_length, cvr=False, implicit=False):
+def handle_configuration(project, min_length, cvr=False, implicit=False,
+                         relatedness=False):
     try:
         results = cmdline_client.get_results(project, min_length,
-                                             cvr, implicit)
+                                             cvr, implicit, relatedness)
     except cmdline_client.NoRunError:
         raise
 
@@ -104,12 +105,13 @@ def handle_configuration(project, min_length, cvr=False, implicit=False):
 
 
 def __try_configuration(prompt, project, min_length,
-                        cvr=False, implicit=False):
+                        cvr=False, implicit=False, relatedness=False):
     head = "Configuration: %s" % prompt
     print("\n%s" % head)
     print("-" * len(head) + '\n')
     try:
-        reports = handle_configuration(project, min_length, cvr, implicit)
+        reports = handle_configuration(project, min_length,
+                                       cvr, implicit, relatedness)
         return len(reports)
     except cmdline_client.NoRunError as nre:
         print("> **[ERROR]** This measurement was not (properly) stored to "
@@ -130,23 +132,42 @@ def handle(project):
               "cannot be retrieved!" % min_arg_length)
 
     normal = __try_configuration("Normal analysis", project, min_arg_length)
+    normal_r = __try_configuration("Normal analysis (with relatedness)",
+                                   project, min_arg_length, relatedness=True)
+
     cvr = __try_configuration("Generous `const`/`volatile`/`restrict` mixing",
                               project, min_arg_length, cvr=True)
+    cvr_r = __try_configuration(
+        "Generous `const`/`volatile`/`restrict` mixing (with relatedness)",
+        project, min_arg_length, cvr=True, relatedness=True)
+
     imp = __try_configuration("Implicit conversions",
                               project, min_arg_length, implicit=True)
+    imp_r = __try_configuration("Implicit conversions (with relatedness)",
+                                project, min_arg_length, implicit=True,
+                                relatedness=True)
+
     cvr_imp = __try_configuration("CVR mix *and* Implicit conversions",
                                   project, min_arg_length,
                                   cvr=True, implicit=True)
+    cvr_imp_r = __try_configuration(
+        "CVR mix *and* Implicit conversions (with relatedness)",
+        project, min_arg_length, cvr=True, implicit=True, relatedness=True)
 
     print("\nResult count and differences between modes")
     print("------------------------------------------\n")
 
-    configurations = [("Normal", False, False),
-                      ("CVR", True, False),
-                      ("Imp", False, True),
-                      ("CVR + Imp", True, True)]
+    configurations = [("Normal", False, False, False),
+                      ("Normal (R)", False, False, True),
+                      ("CVR", True, False, False),
+                      ("CVR (R)", True, False, True),
+                      ("Imp", False, True, False),
+                      ("Imp (R)", False, True, True),
+                      ("CVR + Imp", True, True, False),
+                      ("CVR + Imp (R)", True, True, True)]
     headers = ["\\"] + [c[0] for c in configurations]
-    rows = [["Total #", normal, cvr, imp, cvr_imp]]
+    rows = [["Total #", normal, normal_r, cvr, cvr_r, imp, imp_r,
+             cvr_imp, cvr_imp_r]]
 
     for idx, conf in enumerate(configurations):
         row = [conf[0]]
@@ -165,8 +186,9 @@ def handle(project):
                     project,
                     min_length_1=min_arg_length,
                     min_length_2=min_arg_length,
-                    cvr_1=conf[1], implicit_1=conf[2],
-                    cvr_2=conf2[1], implicit_2=conf2[2],
+                    cvr_1=conf[1], cvr_2=conf2[1],
+                    implicit_1=conf[2], implicit_2=conf2[2],
+                    relatedness_1=conf[3], relatedness_2=conf2[3],
                     direction=direction)
 
             try:

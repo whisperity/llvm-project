@@ -9,4 +9,4 @@ def check_version():
     out = get_json_output(["web-version"])
     ver = StrictVersion(out["Base package version"])
 
-    return ver == StrictVersion(REQUIRED_VERSION), ver
+    return ver >= StrictVersion(REQUIRED_VERSION), ver

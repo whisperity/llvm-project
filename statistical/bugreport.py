@@ -2,9 +2,10 @@ import json
 import re
 import sys
 
-PATTERN_FUNCTION_NAME = re.compile(r"^(\d+) adjacent arguments for '(.*?)' of")
+PATTERN_FUNCTION_NAME = re.compile(
+    r"^(\d+) adjacent parameters for '(.*?)' of")
 PATTERN_EXACT_TYPE = re.compile(r"similar type \('(.*?)'\)")
-PATTERN_TYPEDEF = re.compile(r"type of argument '.*?' is '(.*?)'")
+PATTERN_TYPEDEF = re.compile(r"type of parameter '.*?' is '(.*?)'")
 PATTERN_BINDPOWER = re.compile(
     r"'(.*?)' might bind with same force as '(.*?)'")
 PATTERN_IMPLICIT_BIDIR = re.compile(

@@ -1,6 +1,7 @@
 from .command_builder import get_json_output
 
-CHECKER_NAME = 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'
+CHECKER_NAME = \
+    'experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type'
 PRODUCT = None
 
 
@@ -31,10 +32,12 @@ def minimum_length_for_project(project):
     return min(lengths)
 
 
-def format_run_name(project, min_length=2, cvr=False, implicit=False):
-    return "%s__len%d%s%s" % (project, min_length,
-                              '-cvr' if cvr else '',
-                              '-imp' if implicit else '')
+def format_run_name(project, min_length=2, cvr=False, implicit=False,
+                    relatedness=False):
+    return "%s__len%d%s%s%s" % (project, min_length,
+                                '-cvr' if cvr else '',
+                                '-imp' if implicit else '',
+                                '-rel' if relatedness else '')
 
 
 class NoRunError(Exception):
@@ -42,8 +45,8 @@ class NoRunError(Exception):
         super(Exception, self).__init__("No run with the name: %s!" % run_name)
 
 
-def get_results(project, min_length, cvr, implicit):
-    run_name = format_run_name(project, min_length, cvr, implicit)
+def get_results(project, min_length, cvr, implicit, relatedness):
+    run_name = format_run_name(project, min_length, cvr, implicit, relatedness)
     if run_name not in __RUNS:
         raise NoRunError(run_name)
 
@@ -60,9 +63,12 @@ FINDINGS_IN_BOTH = 8
 
 
 def get_difference(project, min_length_1, cvr_1, implicit_1,
-                   min_length_2, cvr_2, implicit_2, direction):
-    run_name_base = format_run_name(project, min_length_1, cvr_1, implicit_1)
-    run_name_new = format_run_name(project, min_length_2, cvr_2, implicit_2)
+                   min_length_2, cvr_2, implicit_2,
+                   relatedness_1, relatedness_2, direction):
+    run_name_base = format_run_name(project, min_length_1, cvr_1,
+                                    implicit_1, relatedness_1)
+    run_name_new = format_run_name(project, min_length_2, cvr_2,
+                                   implicit_2, relatedness_2)
 
     if run_name_base not in __RUNS:
         raise NoRunError(run_name_base)

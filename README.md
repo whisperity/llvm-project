@@ -1,5 +1,5 @@
-`cppcoreguidelines-avoid-adjacent-arguments-of-same-type` measurement scripts
-=============================================================================
+`experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type` measurement scripts
+===============================================================================================
 
 
 Prerequisites
@@ -7,12 +7,13 @@ Prerequisites
 
 To be able to emit warnings for error-prone constructs:
 
- * `cppcoreguidelines-avoid-adjacent-arguments-of-same-type` checker patched
-   to *Clang-Tidy* and built according to LLVM Documentation.
+ * `experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type`
+   checker patched to *Clang-Tidy* and built according to LLVM Documentation.
    * See other branches named
      `clang-tidy/cppcoreguidelines-avoid-adjacent-arguments-of-same-type` in
      this project for the code.
-   * Preferably use the branch that also models *implicit conversions*.
+   * Preferably use the `_merged` branch that models both *implicit conversions*
+     and *relatedness*.
 
 To run the analysis easily:
 
@@ -44,10 +45,11 @@ Execute action
    ~~~~
    --analyzers clang-tidy
    --disable Weverything
-   --enable cppcoreguidelines-avoid-adjacent-arguments-of-same-type
+   --enable experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type
    ~~~~
-   * Tweak the checker options `MinimumLength`, `CVRMixPossible` and
-     `ImplicitConversion` by specifying a `--tidyargs` file.
+   * Tweak the checker options `MinimumLength`, `CVRMixPossible`,
+     `CheckRelatedness` and `ImplicitConversion` by specifying a `--tidyargs`
+     file.
  * Store analysis results with the following nomenclature. These names are
    **hard** requirements posed by the measurement script.
    * `project__lenX`: `project` is the name of the project, `X` is the
@@ -56,6 +58,11 @@ Execute action
    * `project__lenX-imp`: if `ImplicitConversion` was set to true (`1`)
    * `project__lenX-cvr-imp`: if both `CVRMixPossible` and `ImplicitConversion`
      were set to true (`1`)
+   * `project__lenX-rel`: Same as above, but *relatedness* check is enabled.
+   * `project__lenX-cvr-rel`: Same as above, but *relatedness* check is enabled.
+   * `project__lenX-imp-rel`: Same as above, but *relatedness* check is enabled.
+   * `project__lenX-cvr-imp-rel`: Same as above, but *relatedness* check is
+     enabled.
 
 ### Analysis (automatically)
 
