@@ -15,6 +15,12 @@ To be able to emit warnings for error-prone constructs:
    * Preferably use the `_merged` branch that models both *implicit conversions*
      and *relatedness*.
 
+To be able to measure how much functions were matched, a special build, from the
+`clang-tidy/cppcoreguidelines-avoid-adjacent-arguments-of-same-type/_function-count`
+branch is needed.
+Building this branch will make the other (normal, ending with `_merged`)
+branch's functionality broken.
+
 To run the analysis easily:
 
  * **Release version `v6.11`** of
@@ -80,6 +86,23 @@ Execute action
    process.
  * Execute `run-aa.sh`, which will run the analysis for each projects for each
    configuration, and store the results to the server.
+
+For the number of functions matched, re-run the automated analysis script with
+a different build of *Clang-Tidy*, and specify a different product URL to the
+script.
+
+This product needs to be created before the analysis can be run, by executing:
+~~~~{.sh}
+CodeChecker cmd products add --url http://localhost:8001 \
+    --sqlite Functions.sqlite \
+    Functions
+~~~~
+
+Once the product is added, the analysis can be re-executed.
+
+~~~~{.sh}
+execute-analysis/run-aa.sh http://localhost:8001/Functions
+~~~~
 
 Most projects rely on build artifacts generated *during the build* to build
 properly, so even if you used CMake to obtain the build database, it is

@@ -53,7 +53,18 @@ def __register_args():
                       default=None,
                       help="Product URL that specifies which running "
                            "CodeChecker server to connect to. If empty, "
-                           "will use the default provided by CodeChecker.")
+                           "will use the defaults provided by the CodeChecker "
+                           "install found in PATH.")
+
+    ARGS.add_argument('--functions-url',
+                      dest='functions_url',
+                      type=str,
+                      required=False,
+                      default=None,
+                      help="Product URL that specifies which running "
+                           "CodeChecker server to connect to to fetch "
+                           "function count runs. If empty, function counts "
+                           "will not be tallied.")
 
     proj = ARGS.add_mutually_exclusive_group(required=False)
     proj.add_argument('-a', '--all',
@@ -91,6 +102,7 @@ if __name__ == '__main__':
     __register_args()
     args = ARGS.parse_args()
     cmdline_client.set_product(args.product_url)
+    cmdline_client.set_product_for_function_match(args.functions_url)
 
     all_projects = _obtain_project_list()
     if args.just_list:

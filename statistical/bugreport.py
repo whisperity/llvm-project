@@ -55,8 +55,8 @@ def sanitise_typename(typename):
 class BugReport:
     def __init__(self, report):
         """
-        Parses the given CodeChecker report to a meaningful implicit conversion
-        datum.
+        Parses the given CodeChecker report to a meaningful result of adjacent
+        parameter mixup possibility.
         """
         def _dump():
             print(json.dumps(report, sort_keys=True, indent=2))
@@ -71,9 +71,6 @@ class BugReport:
         msg_match = PATTERN_FUNCTION_NAME.match(report['checkerMsg'])
         self.length, self.function_name = int(msg_match[1]), msg_match[2]
 
-        # Output format for
-        # 'cppcoreguidelines-avoid-adjacent-arguments-of-same-type'
-        # as of commit 78c01e7fa41f3b3631ec32dedf7236bd62c62a29.
         self.length = int(report['checkerMsg'].split(' ')[0])
         self.is_implicit = 'convertible types may' in report['checkerMsg']
         self.is_exact = 'similar type (' in report['checkerMsg']

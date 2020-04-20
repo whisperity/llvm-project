@@ -3,11 +3,17 @@ from .command_builder import get_json_output
 CHECKER_NAME = \
     'experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type'
 PRODUCT = None
+PRODUCT_FUNCTIONS = None
 
 
 def set_product(product_url):
     global PRODUCT
     PRODUCT = product_url
+
+
+def set_product_for_function_match(functions_url):
+    global PRODUCT_FUNCTIONS
+    PRODUCT_FUNCTIONS = functions_url
 
 
 # Some caching.
@@ -45,7 +51,7 @@ class NoRunError(Exception):
         super(Exception, self).__init__("No run with the name: %s!" % run_name)
 
 
-def get_results(project, min_length, cvr, implicit, relatedness):
+def _results(url, project, min_length, cvr, implicit, relatedness):
     run_name = format_run_name(project, min_length, cvr, implicit, relatedness)
     if run_name not in __RUNS:
         raise NoRunError(run_name)
@@ -54,7 +60,16 @@ def get_results(project, min_length, cvr, implicit, relatedness):
                             '--details',
                             '--checker-name', CHECKER_NAME,
                             '--uniqueing', "off"],
-                           PRODUCT)
+                           url)
+
+
+def get_results(project, min_length, cvr, implicit, relatedness):
+    return _results(PRODUCT, project, min_length, cvr, implicit, relatedness)
+
+
+def get_functions(project, min_length, cvr, implicit, relatedness):
+    return _results(PRODUCT_FUNCTIONS, project, min_length, cvr, implicit,
+                    relatedness)
 
 
 NEW_FINDINGS = 2
@@ -62,9 +77,8 @@ DISAPPEARED_FINDINGS = 4
 FINDINGS_IN_BOTH = 8
 
 
-def get_difference(project, min_length_1, cvr_1, implicit_1,
-                   min_length_2, cvr_2, implicit_2,
-                   relatedness_1, relatedness_2, direction):
+def _diff(url, project, min_length_1, cvr_1, implicit_1, relatedness_1,
+          min_length_2, cvr_2, implicit_2, relatedness_2, direction):
     run_name_base = format_run_name(project, min_length_1, cvr_1,
                                     implicit_1, relatedness_1)
     run_name_new = format_run_name(project, min_length_2, cvr_2,
@@ -91,4 +105,22 @@ def get_difference(project, min_length_1, cvr_1, implicit_1,
                             direction_opt,
                             '--checker-name', CHECKER_NAME,
                             '--uniqueing', "off"],
-                           PRODUCT)
+                           url)
+
+
+def get_difference(project, min_length_1, cvr_1, implicit_1, relatedness_1,
+                   min_length_2, cvr_2, implicit_2, relatedness_2, direction):
+    return _diff(PRODUCT, project,
+                 min_length_1, cvr_1, implicit_1, relatedness_1,
+                 min_length_2, cvr_2, implicit_2, relatedness_2,
+                 direction)
+
+
+def get_difference_functions(project,
+                             min_length_1, cvr_1, implicit_1, relatedness_1,
+                             min_length_2, cvr_2, implicit_2, relatedness_2,
+                             direction):
+    return _diff(PRODUCT_FUNCTIONS, project,
+                 min_length_1, cvr_1, implicit_1, relatedness_1,
+                 min_length_2, cvr_2, implicit_2, relatedness_2,
+                 direction)
