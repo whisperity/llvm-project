@@ -33,13 +33,18 @@ fi
 mkdir -p Reports
 pushd Reports
 
-for PROJECT in $(python3 ../__main__.py --url "${PRODUCT_URL}" --list)
+exec 5>&1
+for PROJECT in $(python3 \
+  ../__main__.py \
+  --url "${PRODUCT_URL}" \
+  --list \
+  | tee /dev/fd/5)
 do
   python3 ../__main__.py \
     --url "${PRODUCT_URL}" \
     --functions-url "${FUNCTIONS_URL}" \
     --name "${PROJECT}" \
-    > "${PROJECT}.md"
+    | tee "${PROJECT}.md"
 
   pandoc "${PROJECT}.md" \
     --self-contained \
