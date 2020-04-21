@@ -86,7 +86,7 @@ def handle_configuration(project, min_length, cvr=False, implicit=False,
          for (categ, cnt) in type_categories_count]
 
         if uncategorisable_types:
-            print("\n\n**[WARNING]** The following *types* from the reports "
+            print("\n\n**[WARNING]** The following **types** from the reports "
                   "were not categorised:\n")
             [print(' * `%s`' % t)
              for t in sorted(list(set(uncategorisable_types)))]

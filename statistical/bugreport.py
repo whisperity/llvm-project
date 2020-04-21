@@ -25,29 +25,69 @@ def match_all_to_list(pattern, string):
 
 
 def sanitise_typename(typename):
-    typename = re.sub(r"(un)?signed (char|short|int|long|long long)",
-                      r"\2", typename)
+    """
+    Tear off, from the point of view of this script, unnecessary qualifiers
+    from the type names found in the checker output.
 
-    typename = re.sub(r"^(const )?(.*?) (\*)?&$", r'\2', typename)
+    >>> sanitise_typename("T")
+    'T'
+    >>> sanitise_typename("int")
+    'int'
+    >>> sanitise_typename("const T&")
+    'T'
+    >>> sanitise_typename("T const&")
+    'T'
+    >>> sanitise_typename("int *")
+    'int *'
+    >>> sanitise_typename("const int *")
+    'int *'
+    >>> sanitise_typename("int *const")
+    'int *'
+    >>> sanitise_typename("T *const")
+    'T *'
+    >>> sanitise_typename("T* const")
+    'T *'
+    >>> sanitise_typename("const struct utf8_data *")
+    'utf8_data *'
+    >>> sanitise_typename("volatile signed char* const&")
+    'char *'
+    >>> sanitise_typename("const volatile unsigned int * const restrict")
+    'int *'
+    """
 
-    typename = re.sub(r"^const volatile (.*?) \*", r"\1 *", typename)
-    typename = re.sub(r"^volatile (.*?) \*", r"\1 *", typename)
-    typename = re.sub(r"^const (.*?) \*", r"\1 *", typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?const volatile (?:__)restrict",
-                      r"\1 \*", typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?const volatile", r"\1 *",
-                      typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?const (?:__)restrict", r"\1 *",
-                      typename)
-    typename = re.sub(
-        r"^([\w\d_:]*?) \*( )?volatile (?:__)restrict", r"\1 *", typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?(?:__)restrict", r"\1 *",
-                      typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?volatile", r"\1 *", typename)
-    typename = re.sub(r"^([\w\d_:]*?) \*( )?const", r"\1 *", typename)
-    typename = re.sub(r"^const volatile ([\w\d_:]*?)$", r"\1", typename)
-    typename = re.sub(r"^volatile ([\w\d_:]*?)$", r"\1", typename)
-    typename = re.sub(r"^const ([\w\d_:]*?)$", r"\1", typename)
+    def tear_signedunsigned(t):
+        return re.sub(r"^(un)?signed (.*)$", r'\2', t)
+
+    def tear_tagged_type(t):
+        return re.sub(r"^(struct|class|enum)( )?(.*)$", r'\3', t)
+
+    def tear_qualifier_left(t):
+        return re.sub(r"( )?(const|volatile) (.*?)", r'\3', t)
+
+    def tear_ptrref_qualifier_right(t):
+        return re.sub(r"(.*?)( \*?)( )?(const|volatile|(?:__)?restrict)(&?)",
+                      r'\1\2\5', t)
+
+    def fix_ptr_at_end(t):
+        return re.sub(r"(\S)\*$", r'\1 *', t)
+
+    def tear_reference(t):
+        return re.sub(r"( )?&$", '', t)
+
+    while True:
+        before = typename
+
+        typename = typename.strip()
+        typename = tear_signedunsigned(typename)
+        typename = tear_tagged_type(typename)
+        typename = tear_qualifier_left(typename)
+        typename = tear_ptrref_qualifier_right(typename)
+        typename = tear_reference(typename)
+        typename = fix_ptr_at_end(typename)
+
+        if before == typename:
+            # No change, fix point reached.
+            break
 
     return typename
 
@@ -153,16 +193,18 @@ class BugReport:
                        'long long', 'size_t', 'ssize_t', 'ptrdiff_t']:
                 category += "fundamental integral"
             elif t in ['BOOL', 'int8', 'int8_t', 'uint8', 'uint8_t',
-                       'char16_t', 'int16', 'int16_t', 'uint16', 'uint16_t',
+                       'int16', 'int16_t', 'uint16', 'uint16_t',
                        'int32', 'int32_t', 'uint32', 'uint32_t', 'int64',
                        'int64_t', 'uint64', 'uint64_t', 'uint256', '__m128i',
                        '__m256', '__m256i', '__m512i', 'quint64',
                        'uchar', 'u_char', 'uint', 'u_int', 'ushort', 'uInt',
                        'uint_fast32_t', 'uint_fast64_t',
-                       'GLboolean', 'GLenum', 'GLint', 'GLsizei', 'GLuint']:
+                       'GLboolean', 'GLenum', 'GLint', 'GLsizei', 'GLuint',
+                       'XMLSize_t', 'Bigint', 'intmax_t']:
                 category += "custom integral"
             elif t in ['SOCKET', 'time_t'] \
-                    or (t.startswith('Q') and t[1:].istitle()):
+                    or (t.startswith('Q') and
+                        re.sub('([A-Z])', r' \1', t[1:]).istitle()):
                 category += "framework type"
             elif t in ['float', 'double', 'long double']:
                 category += "fundamental floating"
@@ -171,7 +213,8 @@ class BugReport:
                 category += "custom floating"
             elif 'string' in t.lower() or t in ['Twine']:
                 category += "string-like"
-            elif t in ['const char', 'char', 'schar', 'wchar_t']:
+            elif t in ['const char', 'char', 'schar', 'wchar_t', 'char16_t',
+                       'strbuf', 'utf8_data', 'XMLCh']:
                 # NOTE: Outer pointer-ness potentially removed already.
                 if ptr_depth > 1:
                     category += "strings"
