@@ -10,8 +10,8 @@ fi
 FUNCTIONS_URL="http://localhost:8001/Functions"
 if [ $# -ge 2 -a ! -z "$2" ]
 then
-  FUNCTION_URL="$1"
-  echo "Using CodeChecker product URL for function counts ${FUNCTION_URL}." >&2
+  FUNCTIONS_URL="$2"
+  echo "Using CodeChecker product URL for function counts ${FUNCTIONS_URL}." >&2
 fi
 
 if [ -z $(which CodeChecker) ]
