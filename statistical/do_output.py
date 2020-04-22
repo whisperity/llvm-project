@@ -265,7 +265,7 @@ def handle(project):
     print("\nMatched function count and differences between modes")
     print("----------------------------------------------------\n")
 
-    print("**Total number of functions **analysed**: `%d`\n"
+    print("Total number of functions **analysed**: `%d`\n"
           % sum([1 for parsed in
                  [FunctionMatch(fun_result) for fun_result in
                   cmdline_client.get_functions(project, min_arg_length,
