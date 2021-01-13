@@ -2,7 +2,7 @@ from distutils.version import StrictVersion
 
 from .command_builder import get_json_output
 
-REQUIRED_VERSION = '6.11'
+REQUIRED_VERSION = '6.15'
 
 
 def check_version():

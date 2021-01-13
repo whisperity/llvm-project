@@ -17,11 +17,11 @@ fi
 
 
 MAIN_DIR=$(pwd)
-CONFIGURATIONS=$(fd 'aa-.*.txt' -d 1 ./)
+CONFIGURATIONS=$(fd 'aa-.*.yaml' -d 1 ./)
 
 pushd ./TestProjects
 
-for BJSON in $(fd compile_commands.json -d 2 -H -I ./)
+for BJSON in $(fd compile_commands.json$ -d 2 -H -I ./)
 do
 	echo -n "Running for "
 	PROJECT=$(dirname ${BJSON})
@@ -33,7 +33,7 @@ do
 		echo -e "\n\tUsing configuration: ${CFG}"
 		cat ${MAIN_DIR}/${CFG}
 
-		RUN_NAME="${PROJECT}__$(echo ${CFG} | sed "s/aa-//" | sed "s/\.txt//")"
+		RUN_NAME="${PROJECT}__$(echo ${CFG} | sed "s/aa-//" | sed "s/\.yaml//")"
 		echo -e "\tAs project name: ${RUN_NAME}"
 
 		CodeChecker analyze \
@@ -41,11 +41,12 @@ do
 			--enable experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type \
 			--disable Weverything \
 			--jobs ${JOBS} \
-			--tidyargs $(realpath --relative-to=$(pwd) "${MAIN_DIR}/${CFG}") \
+			--tidy-config $(realpath --relative-to=$(pwd) "${MAIN_DIR}/${CFG}") \
 			--output "../Reports-AA/${RUN_NAME}" \
 			${BJSON}
 
-		if [ $? -ne 0 ]
+		ANALYSIS_RESULT=$?
+		if [ $ANALYSIS_RESULT -ne 0 -a $ANALYSIS_RESULT -ne 2 ]
 		then
 			echo "Analysis failed!" >&2
 			continue
@@ -65,4 +66,4 @@ do
 	done
 done
 
-popd
+popd # ./TestProjects

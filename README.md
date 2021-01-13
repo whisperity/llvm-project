@@ -23,7 +23,7 @@ branch's functionality broken.
 
 To run the analysis easily:
 
- * **Release version `v6.11`** of
+ * **Release version `v6.15`** of
    [CodeChecker](http://github.com/Ericsson/CodeChecker) downloaded, installed
    and in `PATH`.
 
