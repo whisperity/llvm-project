@@ -12,14 +12,9 @@ To be able to emit warnings for error-prone constructs:
    * See other branches named
      `clang-tidy/cppcoreguidelines-avoid-adjacent-arguments-of-same-type` in
      this project for the code.
-   * Preferably use the `_merged` branch that models both *implicit conversions*
-     and *relatedness*.
-
-To be able to measure how much functions were matched, a special build, from the
-`clang-tidy/cppcoreguidelines-avoid-adjacent-arguments-of-same-type/_function-count`
-branch is needed.
-Building this branch will make the other (normal, ending with `_merged`)
-branch's functionality broken.
+   * Preferably use the `_function-count` branch that has every feature merged
+     in, and has the "matched function count" analysis bolted on top.
+     The data measurement scripts understand the results of such an analysis.
 
 To run the analysis easily:
 
@@ -54,21 +49,19 @@ Execute action
    --enable experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type
    ~~~~
    * Tweak the checker options `MinimumLength`, `CVRMixPossible`,
-     `CheckRelatedness` and `ImplicitConversion` by specifying a `--tidyargs`
-     file.
+     `CheckRelatedness`, `ImplicitConversion`, `IgnoredNames`, `IgnoredTypes`,
+     and `NameBasedAffixFilterThreshold` by specifying a `--tidy-config` file.
  * Store analysis results with the following nomenclature. These names are
    **hard** requirements posed by the measurement script.
    * `project__lenX`: `project` is the name of the project, `X` is the
      `MinimumLength` value
    * `project__lenX-cvr`: if `CVRMixPossible` was set to true (`1`)
    * `project__lenX-imp`: if `ImplicitConversion` was set to true (`1`)
-   * `project__lenX-cvr-imp`: if both `CVRMixPossible` and `ImplicitConversion`
-     were set to true (`1`)
-   * `project__lenX-rel`: Same as above, but *relatedness* check is enabled.
-   * `project__lenX-cvr-rel`: Same as above, but *relatedness* check is enabled.
-   * `project__lenX-imp-rel`: Same as above, but *relatedness* check is enabled.
-   * `project__lenX-cvr-imp-rel`: Same as above, but *relatedness* check is
-     enabled.
+   * `project__lenX-rel`: if `CheckRelatedness` was set to true (`1`)
+   * `project__lenX-fil`: if `NameBasedAffixFilterThreshold` was set to a
+     non-zero value.
+   * `project__lenX-cvr-imp`, `project__lenX-cvr-rel-fil`, etc.: the
+      combination of the above options.
 
 ### Analysis (automatically)
 
@@ -86,23 +79,6 @@ Execute action
    process.
  * Execute `run-aa.sh`, which will run the analysis for each projects for each
    configuration, and store the results to the server.
-
-For the number of functions matched, re-run the automated analysis script with
-a different build of *Clang-Tidy*, and specify a different product URL to the
-script.
-
-This product needs to be created before the analysis can be run, by executing:
-~~~~{.sh}
-CodeChecker cmd products add --url http://localhost:8001 \
-    --sqlite Functions.sqlite \
-    Functions
-~~~~
-
-Once the product is added, the analysis can be re-executed.
-
-~~~~{.sh}
-execute-analysis/run-aa.sh http://localhost:8001/Functions
-~~~~
 
 Most projects rely on build artifacts generated *during the build* to build
 properly, so even if you used CMake to obtain the build database, it is
