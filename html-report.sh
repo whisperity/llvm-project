@@ -7,22 +7,15 @@ then
   echo "Using CodeChecker product URL ${PRODUCT_URL}." >&2
 fi
 
-FUNCTIONS_URL="http://localhost:8001/Functions"
-if [ $# -ge 2 -a ! -z "$2" ]
-then
-  FUNCTIONS_URL="$2"
-  echo "Using CodeChecker product URL for function counts ${FUNCTIONS_URL}." >&2
-fi
-
 if [ -z $(which CodeChecker) ]
 then
-	echo "No CodeChecker!" >&2
-	exit 1
+  echo "No CodeChecker!" >&2
+  exit 1
 fi
 if [ -z $(which pandoc) ]
 then
-	echo "No 'pandoc' found!" >&2
-	exit 1
+  echo "No 'pandoc' found!" >&2
+  exit 1
 fi
 if [ -z $(find __main__.py 2>/dev/null) ]
 then
@@ -42,7 +35,6 @@ for PROJECT in $(python3 \
 do
   python3 ../__main__.py \
     --url "${PRODUCT_URL}" \
-    --functions-url "${FUNCTIONS_URL}" \
     --name "${PROJECT}" \
     | tee "${PROJECT}.md"
 

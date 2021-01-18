@@ -3,17 +3,11 @@ from .command_builder import get_json_output
 CHECKER_NAME = \
     'experimental-cppcoreguidelines-avoid-adjacent-parameters-of-the-same-type'
 PRODUCT = None
-PRODUCT_FUNCTIONS = None
 
 
 def set_product(product_url):
     global PRODUCT
     PRODUCT = product_url
-
-
-def set_product_for_function_match(functions_url):
-    global PRODUCT_FUNCTIONS
-    PRODUCT_FUNCTIONS = functions_url
 
 
 # Some caching.
@@ -39,11 +33,12 @@ def minimum_length_for_project(project):
 
 
 def format_run_name(project, min_length=2, cvr=False, implicit=False,
-                    relatedness=False):
-    return "%s__len%d%s%s%s" % (project, min_length,
+                    relatedness=False, filtering=False):
+    return "%s__len%d%s%s%s%s" % (project, min_length,
                                 '-cvr' if cvr else '',
                                 '-imp' if implicit else '',
-                                '-rel' if relatedness else '')
+                                '-rel' if relatedness else '',
+                                '-fil' if filtering else '')
 
 
 class NoRunError(Exception):
@@ -51,8 +46,9 @@ class NoRunError(Exception):
         super(Exception, self).__init__("No run with the name: %s!" % run_name)
 
 
-def _results(url, project, min_length, cvr, implicit, relatedness):
-    run_name = format_run_name(project, min_length, cvr, implicit, relatedness)
+def _results(url, project, min_length, cvr, implicit, relatedness, filtering):
+    run_name = format_run_name(project, min_length, cvr, implicit,
+                               relatedness, filtering)
     if run_name not in __RUNS:
         raise NoRunError(run_name)
 
@@ -63,13 +59,9 @@ def _results(url, project, min_length, cvr, implicit, relatedness):
                            url)
 
 
-def get_results(project, min_length, cvr, implicit, relatedness):
-    return _results(PRODUCT, project, min_length, cvr, implicit, relatedness)
-
-
-def get_functions(project, min_length, cvr, implicit, relatedness):
-    return _results(PRODUCT_FUNCTIONS, project, min_length, cvr, implicit,
-                    relatedness)
+def get_results(project, min_length, cvr, implicit, relatedness, filtering):
+    return _results(PRODUCT, project, min_length, cvr, implicit,
+                    relatedness, filtering)
 
 
 NEW_FINDINGS = 2
@@ -78,11 +70,12 @@ FINDINGS_IN_BOTH = 8
 
 
 def _diff(url, project, min_length_1, cvr_1, implicit_1, relatedness_1,
-          min_length_2, cvr_2, implicit_2, relatedness_2, direction):
+          filtering_1, min_length_2, cvr_2, implicit_2, relatedness_2,
+          filtering_2, direction):
     run_name_base = format_run_name(project, min_length_1, cvr_1,
-                                    implicit_1, relatedness_1)
+       %s                             implicit_1, relatedness_1, filtering_1)
     run_name_new = format_run_name(project, min_length_2, cvr_2,
-                                   implicit_2, relatedness_2)
+                                   implicit_2, relatedness_2, filtering_2)
 
     if run_name_base not in __RUNS:
         raise NoRunError(run_name_base)
@@ -109,18 +102,9 @@ def _diff(url, project, min_length_1, cvr_1, implicit_1, relatedness_1,
 
 
 def get_difference(project, min_length_1, cvr_1, implicit_1, relatedness_1,
-                   min_length_2, cvr_2, implicit_2, relatedness_2, direction):
+                   filtering_1, min_length_2, cvr_2, implicit_2, relatedness_2,
+                   filtering_2, direction):
     return _diff(PRODUCT, project,
-                 min_length_1, cvr_1, implicit_1, relatedness_1,
-                 min_length_2, cvr_2, implicit_2, relatedness_2,
-                 direction)
-
-
-def get_difference_functions(project,
-                             min_length_1, cvr_1, implicit_1, relatedness_1,
-                             min_length_2, cvr_2, implicit_2, relatedness_2,
-                             direction):
-    return _diff(PRODUCT_FUNCTIONS, project,
-                 min_length_1, cvr_1, implicit_1, relatedness_1,
-                 min_length_2, cvr_2, implicit_2, relatedness_2,
+                 min_length_1, cvr_1, implicit_1, relatedness_1, filtering_1,
+                 min_length_2, cvr_2, implicit_2, relatedness_2, filtering_2,
                  direction)
