@@ -10,10 +10,11 @@ from .function_match import FunctionMatch
 
 
 def handle_configuration(project, min_length, cvr=False, implicit=False,
-                         relatedness=False):
+                         relatedness=False, filtering=False):
     try:
         results = cmdline_client.get_results(project, min_length,
-                                             cvr, implicit, relatedness)
+                                             cvr, implicit, relatedness,
+                                             filtering)
     except cmdline_client.NoRunError:
         raise
 
@@ -106,13 +107,13 @@ def handle_configuration(project, min_length, cvr=False, implicit=False,
 
 
 def __try_configuration(prompt, project, min_length, cvr=False, implicit=False,
-                        relatedness=False):
+                        relatedness=False, filtering=False):
     head = "Configuration: %s" % prompt
     print("\n%s" % head)
     print("-" * len(head) + '\n')
     try:
         reports = handle_configuration(project, min_length,
-                                       cvr, implicit, relatedness)
+                                       cvr, implicit, relatedness, filtering)
         return len(reports)
     except cmdline_client.NoRunError as nre:
         print("> **[ERROR]** This measurement was not (properly) stored to "
@@ -122,10 +123,11 @@ def __try_configuration(prompt, project, min_length, cvr=False, implicit=False,
 
 
 def handle_functions(project, min_length, cvr=False, implicit=False,
-                     relatedness=False):
+                     relatedness=False, filtering=False):
     try:
         results = cmdline_client.get_functions(project, min_length,
-                                               cvr, implicit, relatedness)
+                                               cvr, implicit, relatedness,
+                                               filtering)
     except cmdline_client.NoRunError:
         raise
 
@@ -142,11 +144,11 @@ def handle_functions(project, min_length, cvr=False, implicit=False,
 
 
 def __try_functions(project, min_length, cvr=False, implicit=False,
-                    relatedness=False):
+                    relatedness=False, filtering=False):
     print("\n\n### Matched functions")
     try:
         count = handle_functions(project, min_length, cvr, implicit,
-                                 relatedness)
+                                 relatedness, filtering)
         return count
     except cmdline_client.NoRunError as nre:
         print("> **[ERROR]** This measurement for functions was not "
@@ -204,14 +206,14 @@ def handle(project):
     print("\nResult count and differences between modes")
     print("------------------------------------------\n")
 
-    configurations = [("Normal", False, False, False),
-                      ("Normal (R)", False, False, True),
-                      ("CVR", True, False, False),
-                      ("CVR (R)", True, False, True),
-                      ("Imp", False, True, False),
-                      ("Imp (R)", False, True, True),
-                      ("CVR + Imp", True, True, False),
-                      ("CVR + Imp (R)", True, True, True)]
+    configurations = [("Normal", False, False, False, False),
+                      ("Normal (R)", False, False, True, False),
+                      ("CVR", True, False, False, False),
+                      ("CVR (R)", True, False, True, False),
+                      ("Imp", False, True, False, False),
+                      ("Imp (R)", False, True, True, False),
+                      ("CVR + Imp", True, True, False, False),
+                      ("CVR + Imp (R)", True, True, True, False)]
     headers = ["\\"] + [c[0] for c in configurations]
     rows = [["Total #", normal, normal_r, cvr, cvr_r, imp, imp_r,
              cvr_imp, cvr_imp_r]]
@@ -236,6 +238,7 @@ def handle(project):
                     cvr_1=conf[1], cvr_2=conf2[1],
                     implicit_1=conf[2], implicit_2=conf2[2],
                     relatedness_1=conf[3], relatedness_2=conf2[3],
+                    filtering_1=conf[4], filtering_2=conf2[4],
                     direction=direction)
 
             try:
@@ -269,17 +272,17 @@ def handle(project):
           % sum([1 for parsed in
                  [FunctionMatch(fun_result) for fun_result in
                   cmdline_client.get_functions(project, min_arg_length,
-                                               False, False, False)]
+                                               False, False, False, False)]
                  if parsed.is_analysed_function]))
 
-    configurations = [("Normal", False, False, False),
-                      ("Normal (R)", False, False, True),
-                      ("CVR", True, False, False),
-                      ("CVR (R)", True, False, True),
-                      ("Imp", False, True, False),
-                      ("Imp (R)", False, True, True),
-                      ("CVR + Imp", True, True, False),
-                      ("CVR + Imp (R)", True, True, True)]
+    configurations = [("Normal", False, False, False, False),
+                      ("Normal (R)", False, False, True, False),
+                      ("CVR", True, False, False, False),
+                      ("CVR (R)", True, False, True, False),
+                      ("Imp", False, True, False, False),
+                      ("Imp (R)", False, True, True, False),
+                      ("CVR + Imp", True, True, False, False),
+                      ("CVR + Imp (R)", True, True, True, False)]
     headers = ["\\"] + [c[0] for c in configurations]
     rows = [["Mached Fn #", normal_f, normal_r_f, cvr_f, cvr_r_f,
              imp_f, imp_r_f, cvr_imp_f, cvr_imp_r_f]]
@@ -304,6 +307,7 @@ def handle(project):
                     cvr_1=conf[1], cvr_2=conf2[1],
                     implicit_1=conf[2], implicit_2=conf2[2],
                     relatedness_1=conf[3], relatedness_2=conf2[3],
+                    filtering_1=conf[4], filtering_2=conf2[4],
                     direction=direction)
                 diff_parsed = [FunctionMatch(result)
                                for result in diff_results]

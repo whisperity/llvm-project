@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from distutils.version import StrictVersion
 import subprocess
 import sys
 
@@ -82,6 +83,14 @@ def __register_args():
 
 
 if __name__ == '__main__':
+    pyver = StrictVersion(sys.version.split(' ')[0])
+    pyver_req = "3.6.8"
+    if pyver < StrictVersion(pyver_req):
+        print("Error: Version %s Python required, but got %s"
+              % (pyver_req, pyver),
+              file=sys.stderr)
+        sys.exit(2)
+
     vcheck, ver = check_version.check_version()
     if not vcheck:
         print("Error: Version %s CodeChecker required, but got %s"
