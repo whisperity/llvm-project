@@ -66,7 +66,7 @@ Execute action
 
 ### Analysis (automatically)
 
- * Create a directory `TestProjects` under `execute-analysis`.
+ * Create a directory `TestProjects`.
  * For each project you want to analyse, check them out under this
    `TestProjects` directory - e.g. `TestProjects/linux`.
    * Obtain a `compile_commands.json` some way for the project's build, and
@@ -78,8 +78,8 @@ Execute action
        to register build commands.
  * Start a CodeChecker server on the machine and leave it running during the
    process.
- * Execute `run-aa.sh`, which will run the analysis for each projects for each
-   configuration, and store the results to the server.
+ * Execute `Analysis-Configuration/run-aa.sh`, which will run the analysis for
+   each projects for each configuration, and store the results to the server.
 
 Most projects rely on build artifacts generated *during the build* to build
 properly, so even if you used CMake to obtain the build database, it is
@@ -92,7 +92,7 @@ The results can be viewed in the [web browser](http://localhost:8001/Default).
 Keep a `CodeChecker server` that contains the analysis results uploaded running
 in the background.
 
-Start `__main__.py`.
+Start `ReportGen/__main__.py`.
 
 > See the `--help` option on extra arguments, such as overriding *product-URL*
 > if needed)
@@ -101,8 +101,14 @@ Results are emitted to the *standard output* in *Markdown* format.
 You can save the results by piping the output to a file:
 
 ~~~~{.sh}
-python3 __main__.py > output.md
+python3 ReportGen/__main__.py > output.md
 ~~~~
 
 To format results into HTML reports, one per *project* on the server, execute
-`html-report.sh`.
+`ReportGen/html-report.sh`.
+
+### Helper scripts
+
+A few automation scripts reside in the repository, which helps to start the
+CodeChecker server, auto-execute the analysis, create the results, offer an
+HTTP server to view the results, etc.
