@@ -10,8 +10,6 @@ PATTERN_BINDPOWER = re.compile(
     r"'(.*?)' might bind with same force as '(.*?)'")
 PATTERN_IMPLICIT_BIDIR = re.compile(
     r"'(.*?)' and '(.*?)' can suffer implicit")
-PATTERN_IMPLICIT_UNIDIR = re.compile(
-    r"'(.*?)' can be implicitly converted (?:from|to) '(.*?)'")
 
 
 def match_all_to_list(pattern, string):
@@ -106,7 +104,6 @@ class BugReport:
         self.has_bindpower = False
         self.has_ref_bind = False
         self.has_implicit_bidir = False
-        self.has_implicit_unidir = False
 
         msg_match = PATTERN_FUNCTION_NAME.match(report['checkerMsg'])
         self.length, self.function_name = int(msg_match[1]), msg_match[2]
@@ -146,12 +143,9 @@ class BugReport:
 
                 if self.is_implicit:
                     bidirs = match_all_to_list(PATTERN_IMPLICIT_BIDIR, step)
-                    unidirs = match_all_to_list(PATTERN_IMPLICIT_UNIDIR, step)
                     if bidirs:
                         self.has_implicit_bidir = True
-                    if unidirs:
-                        self.has_implicit_unidir = True
-                    types_for_step += bidirs + unidirs
+                    types_for_step += bidirs
 
                 if any(t.endswith(' &') for t in types_for_step):
                     self.has_ref_bind = True

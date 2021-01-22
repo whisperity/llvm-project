@@ -65,9 +65,6 @@ def handle_configuration(project, min_length, cvr=False, implicit=False,
         print("        * Number of reports with any **bidirectional** "
               "implicity: %d"
               % sum([1 for R in reps if R.has_implicit_bidir]))
-        print("        * Number of reports with any **unidirectional** "
-              "implicity: %d"
-              % sum([1 for R in reps if R.has_implicit_unidir]))
 
     def _type_breakdown():
         print()
