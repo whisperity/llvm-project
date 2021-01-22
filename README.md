@@ -60,7 +60,7 @@ Execute action
    * `project__lenX-imp`: if `ImplicitConversion` was set to true (`1`)
    * `project__lenX-rel`: if `CheckRelatedness` was set to true (`1`)
    * `project__lenX-fil`: if `NameBasedAffixFilterThreshold` was set to a
-     non-zero value.
+     non-zero value, enabling the feature
    * `project__lenX-cvr-imp`, `project__lenX-cvr-rel-fil`, etc.: the
       combination of the above options.
 

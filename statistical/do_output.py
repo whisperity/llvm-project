@@ -154,6 +154,21 @@ def __try_functions(project, min_length, cvr=False, implicit=False,
         return 0
 
 
+CONF_NOR = (False, False, False, False)
+CONF_CVR = (True, False, False, False)
+CONF_IMP = (False, True, False, False)
+CONF_REL = (False, False, True, False)
+CONF_FIL = (False, False, False, True)
+
+
+def conf_or(*confs):
+    x = [False, False, False, False]
+    for conf in confs:
+        for idx, val in enumerate(x):
+            x[idx] = val or conf[idx]
+    return tuple(x)
+
+
 def handle(project):
     head = "Project: `%s`" % project
     print("\n\n%s" % head)
@@ -165,65 +180,63 @@ def handle(project):
               "Potential shorter results were ignored during analysis and "
               "cannot be retrieved!" % min_arg_length)
 
-    normal = __try_configuration("Normal analysis", project, min_arg_length)
-    normal_f = __try_functions(project, min_arg_length)
-    normal_r = __try_configuration("Normal analysis (with relatedness)",
-                                   project, min_arg_length, relatedness=True)
-    normal_r_f = __try_functions(project, min_arg_length, relatedness=True)
+    # [("Title", (CVR, Imp, Rel, Fil))]
+    # [("Title", (CVR1, Imp1, Rel1, Fil1), (CVR2, Imp2, Rel2, Fil2))]
+    configurations = {
+        "Normal": CONF_NOR,
 
-    cvr = __try_configuration("Generous `const`/`volatile`/`restrict` mixing",
-                              project, min_arg_length, cvr=True)
-    cvr_f = __try_functions(project, min_arg_length, cvr=True)
-    cvr_r = __try_configuration(
-        "Generous `const`/`volatile`/`restrict` mixing (with relatedness)",
-        project, min_arg_length, cvr=True, relatedness=True)
-    cvr_r_f = __try_functions(project, min_arg_length,
-                              cvr=True, relatedness=True)
+        "CVR": CONF_CVR,
+        "CVR (v. Normal)": (CONF_NOR, CONF_CVR),
 
-    imp = __try_configuration("Implicit conversions",
-                              project, min_arg_length, implicit=True)
-    imp_f = __try_functions(project, min_arg_length, implicit=True)
-    imp_r = __try_configuration("Implicit conversions (with relatedness)",
-                                project, min_arg_length, implicit=True,
-                                relatedness=True)
-    imp_r_f = __try_functions(project, min_arg_length, implicit=True,
-                              relatedness=True)
+        "Imp": CONF_IMP,
+        "Imp (v. Normal)": (CONF_NOR, CONF_IMP),
 
-    cvr_imp = __try_configuration("CVR mix *and* Implicit conversions",
-                                  project, min_arg_length,
-                                  cvr=True, implicit=True)
-    cvr_imp_f = __try_functions(project, min_arg_length,
-                                cvr=True, implicit=True)
-    cvr_imp_r = __try_configuration(
-        "CVR mix *and* Implicit conversions (with relatedness)",
-        project, min_arg_length, cvr=True, implicit=True, relatedness=True)
-    cvr_imp_r_f = __try_functions(project, min_arg_length,
-                                  cvr=True, implicit=True, relatedness=True)
+        "CVR + Imp": conf_or(CONF_CVR, CONF_IMP),
+        "CVR + Imp (v. CVR)": (CONF_CVR, conf_or(CONF_CVR, CONF_IMP)),
+        "CVR + Imp (v. Imp)": (CONF_IMP, conf_or(CONF_CVR, CONF_IMP)),
+
+        "Rel (v. Normal)": (CONF_NOR, CONF_REL),
+        "Fil (v. Normal)": (CONF_NOR, CONF_FIL),
+        "Rel + Fil (v. Normal)": (CONF_NOR, conf_or(CONF_REL, CONF_FIL)),
+
+        "Rel (v. CVR + Imp)": (conf_or(CONF_CVR, CONF_IMP),
+                               conf_or(CONF_CVR, CONF_IMP, CONF_REL)),
+        "Fil (v. CVR + Imp)": (conf_or(CONF_CVR, CONF_IMP),
+                               conf_or(CONF_CVR, CONF_IMP, CONF_FIL)),
+        "Rel + Fil (v. CVR + Imp)": (conf_or(CONF_CVR, CONF_IMP),
+                                     conf_or(CONF_CVR, CONF_IMP,
+                                             CONF_REL, CONF_FIL))
+    }
+
+    result_count = dict()
+    for key, value in configurations.items():
+        if len(value) == 2 and isinstance(value[0], tuple) and \
+                isinstance(value[1], tuple):
+            continue
+
+        result_count[key] = dict()
+        result_count[key]['results'] = \
+            __try_configuration(key, project, min_arg_length, *value)
+        result_count[key]['functions'] = \
+            __try_functions(project, min_arg_length, *value)
 
     print("\nResult count and differences between modes")
     print("------------------------------------------\n")
 
-    configurations = [("Normal", False, False, False, False),
-                      ("Normal (R)", False, False, True, False),
-                      ("CVR", True, False, False, False),
-                      ("CVR (R)", True, False, True, False),
-                      ("Imp", False, True, False, False),
-                      ("Imp (R)", False, True, True, False),
-                      ("CVR + Imp", True, True, False, False),
-                      ("CVR + Imp (R)", True, True, True, False)]
-    headers = ["\\"] + [c[0] for c in configurations]
-    rows = [["Total #", normal, normal_r, cvr, cvr_r, imp, imp_r,
-             cvr_imp, cvr_imp_r]]
+    headers = ["Configuration", "Result count (difference, where applicable)"]
+    rows = []
+    for key, value in configurations.items():
+        row = [key]
+        conf = value
 
-    for idx, conf in enumerate(configurations):
-        row = [conf[0]]
-        for idx2, conf2 in enumerate(configurations):
-            if idx > idx2:
-                row.append("/")
-                continue
-            if idx == idx2:
-                row.append("-")
-                continue
+        if isinstance(conf, tuple) and len(conf) == 4:
+            # Single configuration shows the count only.
+            row.append(result_count[key]['results'])
+        elif len(value) == 2 and isinstance(value[0], tuple) and \
+                isinstance(value[1], tuple):
+            # Diff configuration.
+            conf = value[0]
+            conf2 = value[1]
 
             # Calculate the report counts of the diff between the
             # configurations.
@@ -232,22 +245,37 @@ def handle(project):
                     project,
                     min_length_1=min_arg_length,
                     min_length_2=min_arg_length,
-                    cvr_1=conf[1], cvr_2=conf2[1],
-                    implicit_1=conf[2], implicit_2=conf2[2],
-                    relatedness_1=conf[3], relatedness_2=conf2[3],
-                    filtering_1=conf[4], filtering_2=conf2[4],
+                    cvr_1=conf[0], cvr_2=conf2[0],
+                    implicit_1=conf[1], implicit_2=conf2[1],
+                    relatedness_1=conf[2], relatedness_2=conf2[2],
+                    filtering_1=conf[3], filtering_2=conf2[3],
                     direction=direction)
 
+            same, new, gone = None, None, None
             try:
-                same = _diff(cmdline_client.FINDINGS_IN_BOTH)
-                new = _diff(cmdline_client.NEW_FINDINGS)
-                gone = _diff(cmdline_client.DISAPPEARED_FINDINGS)
+                any_error = False
+                try:
+                    same = _diff(cmdline_client.FINDINGS_IN_BOTH)
+                except cmdline_client.NoRunError:
+                    same = '?'
+                    any_error = True
+                try:
+                    new = _diff(cmdline_client.NEW_FINDINGS)
+                except cmdline_client.NoRunError:
+                    new = '?'
+                    any_error = True
+                try:
+                    gone = _diff(cmdline_client.DISAPPEARED_FINDINGS)
+                except cmdline_client.NoRunError:
+                    gone = '?'
+                    any_error = True
+
+                if any_error:
+                    raise cmdline_client.NoRunError('')
             except cmdline_client.NoRunError:
                 print("> **[ERROR]** The measurement for (%s, %d, %s, %s) was "
                       "not (properly) stored to the server!"
                       % (project, min_arg_length, conf[0], conf2[0]))
-                row.append("(error)")
-                continue
 
             cell = list()
             if same:
@@ -272,27 +300,19 @@ def handle(project):
                                                False, False, False, False)]
                  if parsed.is_analysed_function]))
 
-    configurations = [("Normal", False, False, False, False),
-                      ("Normal (R)", False, False, True, False),
-                      ("CVR", True, False, False, False),
-                      ("CVR (R)", True, False, True, False),
-                      ("Imp", False, True, False, False),
-                      ("Imp (R)", False, True, True, False),
-                      ("CVR + Imp", True, True, False, False),
-                      ("CVR + Imp (R)", True, True, True, False)]
-    headers = ["\\"] + [c[0] for c in configurations]
-    rows = [["Mached Fn #", normal_f, normal_r_f, cvr_f, cvr_r_f,
-             imp_f, imp_r_f, cvr_imp_f, cvr_imp_r_f]]
+    rows = []
+    for key, value in configurations.items():
+        row = [key]
+        conf = value
 
-    for idx, conf in enumerate(configurations):
-        row = [conf[0]]
-        for idx2, conf2 in enumerate(configurations):
-            if idx > idx2:
-                row.append("/")
-                continue
-            if idx == idx2:
-                row.append("-")
-                continue
+        if isinstance(conf, tuple) and len(conf) == 4:
+            # Single configuration shows the count only.
+            row.append(result_count[key]['functions'])
+        elif len(value) == 2 and isinstance(value[0], tuple) and \
+                isinstance(value[1], tuple):
+            # Diff configuration.
+            conf = value[0]
+            conf2 = value[1]
 
             # Calculate the report counts of the diff between the
             # configurations.
@@ -301,25 +321,40 @@ def handle(project):
                     project,
                     min_length_1=min_arg_length,
                     min_length_2=min_arg_length,
-                    cvr_1=conf[1], cvr_2=conf2[1],
-                    implicit_1=conf[2], implicit_2=conf2[2],
-                    relatedness_1=conf[3], relatedness_2=conf2[3],
-                    filtering_1=conf[4], filtering_2=conf2[4],
+                    cvr_1=conf[0], cvr_2=conf2[0],
+                    implicit_1=conf[1], implicit_2=conf2[1],
+                    relatedness_1=conf[2], relatedness_2=conf2[2],
+                    filtering_1=conf[3], filtering_2=conf2[3],
                     direction=direction)
                 diff_parsed = [FunctionMatch(result)
                                for result in diff_results]
                 return [R for R in diff_parsed if R.is_matched_function]
 
+            same, new, gone = None, None, None
             try:
-                same = _diff(cmdline_client.FINDINGS_IN_BOTH)
-                new = _diff(cmdline_client.NEW_FINDINGS)
-                gone = _diff(cmdline_client.DISAPPEARED_FINDINGS)
+                any_error = False
+                try:
+                    same = _diff(cmdline_client.FINDINGS_IN_BOTH)
+                except cmdline_client.NoRunError:
+                    same = '?'
+                    any_error = True
+                try:
+                    new = _diff(cmdline_client.NEW_FINDINGS)
+                except cmdline_client.NoRunError:
+                    new = '?'
+                    any_error = True
+                try:
+                    gone = _diff(cmdline_client.DISAPPEARED_FINDINGS)
+                except cmdline_client.NoRunError:
+                    gone = '?'
+                    any_error = True
+
+                if any_error:
+                    raise cmdline_client.NoRunError('')
             except cmdline_client.NoRunError:
                 print("> **[ERROR]** The measurement for (%s, %d, %s, %s) was "
                       "not (properly) stored to the server!"
                       % (project, min_arg_length, conf[0], conf2[0]))
-                row.append("(error)")
-                continue
 
             cell = list()
             if same:
