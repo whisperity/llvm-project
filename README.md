@@ -25,8 +25,7 @@ To run the analysis easily:
 To run the measurement scripts:
 
  * `CodeChecker` as discussed above
- * Python **3.6.8** or newer
- * `pip install percol scipy tabulate`
+ * Python **3.6.8** or newer and the packages in [`requirements.txt`](/requirements.txt).
 
 To format the output to HTML:
 
