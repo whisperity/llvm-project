@@ -179,7 +179,7 @@ class BugReport:
             if t == 'void' and ptr_depth or \
                     t in ['ArrayRef', 'uintptr_t', 'BUFFER', 'Buffer']:
                 category = "buffer (void-ptr or templated)"
-            elif re.search(r'[\d]$', t):
+            elif re.search(r'\[\d+\]$', t):
                 category += "buffer (C-style array)"
             elif t == 'FILE' and ptr_depth == 1:
                 category = "C File"
@@ -203,7 +203,7 @@ class BugReport:
             elif t in ['float', 'double', 'long double']:
                 category += "fundamental floating"
             elif t in ['float4', 'float8', 'FPOINT', 'LONG_DOUBLE',
-                       'GLdouble', 'GLfloat']:
+                       'GLdouble', 'GLfloat', 'qreal']:
                 category += "custom floating"
             elif 'string' in t.lower() or t in ['Twine']:
                 category += "string-like"
