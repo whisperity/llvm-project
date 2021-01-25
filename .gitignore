@@ -1,4 +1,2 @@
 # Ignore the automated outputs of the script.
-Reports-AA/
-Reports-Matches/
-Results-Calculated/
+Reports-*/

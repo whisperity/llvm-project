@@ -62,6 +62,7 @@ def _results(url, project, message_filter, min_length,
                             '--details',
                             '--checker-name', CHECKER_NAME,
                             '--checker-msg', *message_filter,
+                            '--component', "Other (auto-generated)",
                             '--uniqueing', "off"],
                            url)
 
@@ -117,6 +118,7 @@ def _diff(url, project, message_filter,
                             direction_opt,
                             '--checker-name', CHECKER_NAME,
                             '--checker-msg', *message_filter,
+                            '--component', "Other (auto-generated)",
                             '--uniqueing', "off"],
                            url)
 

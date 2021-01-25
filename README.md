@@ -91,6 +91,13 @@ The results can be viewed in the [web browser](http://localhost:8001/Default).
 Keep a `CodeChecker server` that contains the analysis results uploaded running
 in the background.
 
+> **Optional, but recommended step:** Set up the _Source components_ on the
+> server in a way that build-generated code is put into its own source
+> component, while the CodeChecker-provided `Other (auto-generated)` component
+> contains the code the user wrote.
+>
+> This way, results into the generated code will be filtered from the analysis.
+
 Start `ReportGen/__main__.py`.
 
 > See the `--help` option on extra arguments, such as overriding *product-URL*
