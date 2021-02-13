@@ -205,7 +205,10 @@ def handle(project):
                                conf_or(CONF_CVR, CONF_IMP, CONF_FIL)),
         "Rel + Fil (v. CVR + Imp)": (conf_or(CONF_CVR, CONF_IMP),
                                      conf_or(CONF_CVR, CONF_IMP,
-                                             CONF_REL, CONF_FIL))
+                                             CONF_REL, CONF_FIL)),
+
+        "Normal - (Rel + Fil)": conf_or(CONF_REL, CONF_FIL),
+        "(CVR + Imp) - (Rel + Fil)": conf_or(CONF_CVR, CONF_IMP, CONF_REL, CONF_FIL)
     }
 
     result_count = dict()
