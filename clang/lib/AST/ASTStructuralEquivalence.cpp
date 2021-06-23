@@ -39,7 +39,7 @@
 // function:
 // ```
 // static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-//                                      Decl *D1, Decl *D2);
+//                                      const Decl *D1, const Decl *D2);
 // ```
 // The `while` loop where we iterate over the children is implemented in
 // `Finish()`.  And `Finish` is called only from the two **member** functions
@@ -48,13 +48,13 @@
 //
 // The `static` implementation functions are called from `Finish`, these push
 // the children nodes to the queue via `static bool
-// IsStructurallyEquivalent(StructuralEquivalenceContext &Context, Decl *D1,
-// Decl *D2)`.  So far so good, this is almost like the BFS.  However, if we
-// let a static implementation function to call `Finish` via another **member**
-// function that means we end up with two nested while loops each of them
-// working on the same queue. This is wrong and nobody can reason about it's
-// doing. Thus, static implementation functions must not call the **member**
-// functions.
+// IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+// const Decl *D1, const Decl *D2)`.
+// So far so good, this is almost like the BFS.  However, if we let a static
+// implementation function to call `Finish` via another **member** function
+// that means we end up with two nested while loops each of them working on the
+// same queue. This is wrong and nobody can reason about it's doing. Thus,
+// static implementation functions must not call the **member** functions.
 //
 //===----------------------------------------------------------------------===//
 
@@ -98,7 +98,7 @@ using namespace clang;
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      QualType T1, QualType T2);
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     Decl *D1, Decl *D2);
+                                     const Decl *D1, const Decl *D2);
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      const TemplateArgument &Arg1,
                                      const TemplateArgument &Arg2);
@@ -178,9 +178,8 @@ class StmtComparer {
   }
 
   bool IsStmtEquivalent(const CallExpr *E1, const CallExpr *E2) {
-    // FIXME: IsStructurallyEquivalent requires non-const Decls.
-    Decl *Callee1 = const_cast<Decl *>(E1->getCalleeDecl());
-    Decl *Callee2 = const_cast<Decl *>(E2->getCalleeDecl());
+    const Decl *Callee1 = E1->getCalleeDecl();
+    const Decl *Callee2 = E2->getCalleeDecl();
 
     // Compare whether both calls know their callee.
     if (static_cast<bool>(Callee1) != static_cast<bool>(Callee2))
@@ -1337,7 +1336,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 /// Determine structural equivalence of two lambda classes.
 static bool
 IsStructurallyEquivalentLambdas(StructuralEquivalenceContext &Context,
-                                CXXRecordDecl *D1, CXXRecordDecl *D2) {
+                                const CXXRecordDecl *D1,
+                                const CXXRecordDecl *D2) {
   assert(D1->isLambda() && D2->isLambda() &&
          "Must be called on lambda classes");
   if (!IsStructurallyEquivalent(Context, D1->getLambdaCallOperator(),
@@ -1349,7 +1349,8 @@ IsStructurallyEquivalentLambdas(StructuralEquivalenceContext &Context,
 
 /// Determine structural equivalence of two records.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     RecordDecl *D1, RecordDecl *D2) {
+                                     const RecordDecl *D1,
+                                     const RecordDecl *D2) {
 
   // Check for equivalent structure names.
   IdentifierInfo *Name1 = D1->getIdentifier();
@@ -1593,7 +1594,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
 /// Determine structural equivalence of two enums.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     EnumDecl *D1, EnumDecl *D2) {
+                                     const EnumDecl *D1, const EnumDecl *D2) {
 
   // Check for equivalent enum names.
   IdentifierInfo *Name1 = D1->getIdentifier();
@@ -1664,8 +1665,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     TemplateParameterList *Params1,
-                                     TemplateParameterList *Params2) {
+                                     const TemplateParameterList *Params1,
+                                     const TemplateParameterList *Params2) {
   if (Params1->size() != Params2->size()) {
     if (Context.Complain) {
       Context.Diag2(Params2->getTemplateLoc(),
@@ -1717,8 +1718,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     NonTypeTemplateParmDecl *D1,
-                                     NonTypeTemplateParmDecl *D2) {
+                                     const NonTypeTemplateParmDecl *D1,
+                                     const NonTypeTemplateParmDecl *D2) {
   if (D1->isParameterPack() != D2->isParameterPack()) {
     if (Context.Complain) {
       Context.Diag2(D2->getLocation(),
@@ -1748,8 +1749,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     TemplateTemplateParmDecl *D1,
-                                     TemplateTemplateParmDecl *D2) {
+                                     const TemplateTemplateParmDecl *D1,
+                                     const TemplateTemplateParmDecl *D2) {
   if (D1->isParameterPack() != D2->isParameterPack()) {
     if (Context.Complain) {
       Context.Diag2(D2->getLocation(),
@@ -1779,8 +1780,8 @@ static bool IsTemplateDeclCommonStructurallyEquivalent(
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     ClassTemplateDecl *D1,
-                                     ClassTemplateDecl *D2) {
+                                     const ClassTemplateDecl *D1,
+                                     const ClassTemplateDecl *D2) {
   // Check template parameters.
   if (!IsTemplateDeclCommonStructurallyEquivalent(Context, D1, D2))
     return false;
@@ -1791,8 +1792,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     FunctionTemplateDecl *D1,
-                                     FunctionTemplateDecl *D2) {
+                                     const FunctionTemplateDecl *D1,
+                                     const FunctionTemplateDecl *D2) {
   // Check template parameters.
   if (!IsTemplateDeclCommonStructurallyEquivalent(Context, D1, D2))
     return false;
@@ -1803,8 +1804,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     ConceptDecl *D1,
-                                     ConceptDecl *D2) {
+                                     const ConceptDecl *D1,
+                                     const ConceptDecl *D2) {
   // Check template parameters.
   if (!IsTemplateDeclCommonStructurallyEquivalent(Context, D1, D2))
     return false;
@@ -1815,7 +1816,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     FriendDecl *D1, FriendDecl *D2) {
+                                     const FriendDecl *D1,
+                                     const FriendDecl *D2) {
   if ((D1->getFriendType() && D2->getFriendDecl()) ||
       (D1->getFriendDecl() && D2->getFriendType())) {
       return false;
@@ -1831,7 +1833,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     TypedefNameDecl *D1, TypedefNameDecl *D2) {
+                                     const TypedefNameDecl *D1,
+                                     const TypedefNameDecl *D2) {
   if (!IsStructurallyEquivalent(D1->getIdentifier(), D2->getIdentifier()))
     return false;
 
@@ -1840,7 +1843,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     FunctionDecl *D1, FunctionDecl *D2) {
+                                     const FunctionDecl *D1,
+                                     const FunctionDecl *D2) {
   if (!IsStructurallyEquivalent(D1->getIdentifier(), D2->getIdentifier()))
     return false;
 
@@ -1860,7 +1864,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
 /// Determine structural equivalence of two declarations.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
-                                     Decl *D1, Decl *D2) {
+                                     const Decl *D1, const Decl *D2) {
   // FIXME: Check for known structural equivalences via a callback of some sort.
 
   D1 = D1->getCanonicalDecl();
@@ -1902,9 +1906,9 @@ DiagnosticBuilder StructuralEquivalenceContext::Diag2(SourceLocation Loc,
   return ToCtx.getDiagnostics().Report(Loc, DiagID);
 }
 
-Optional<unsigned>
-StructuralEquivalenceContext::findUntaggedStructOrUnionIndex(RecordDecl *Anon) {
-  ASTContext &Context = Anon->getASTContext();
+Optional<unsigned> StructuralEquivalenceContext::findUntaggedStructOrUnionIndex(
+    const RecordDecl *Anon) {
+  const ASTContext &Context = Anon->getASTContext();
   QualType AnonTy = Context.getRecordType(Anon);
 
   const auto *Owner = dyn_cast<RecordDecl>(Anon->getDeclContext());

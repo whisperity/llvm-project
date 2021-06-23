@@ -40,19 +40,19 @@ enum class StructuralEquivalenceKind {
 
 struct StructuralEquivalenceContext {
   /// AST contexts for which we are checking structural equivalence.
-  ASTContext &FromCtx, &ToCtx;
+  const ASTContext &FromCtx, &ToCtx;
 
   // Queue of from-to Decl pairs that are to be checked to determine the final
   // result of equivalence of a starting Decl pair.
-  std::queue<std::pair<Decl *, Decl *>> DeclsToCheck;
+  std::queue<std::pair<const Decl *, const Decl *>> DeclsToCheck;
 
   // Set of from-to Decl pairs that are already visited during the check
   // (are in or were once in \c DeclsToCheck) of a starting Decl pair.
-  llvm::DenseSet<std::pair<Decl *, Decl *>> VisitedDecls;
+  llvm::DenseSet<std::pair<const Decl *, const Decl *>> VisitedDecls;
 
   /// Declaration (from, to) pairs that are known not to be equivalent
   /// (which we have already complained about).
-  llvm::DenseSet<std::pair<Decl *, Decl *>> &NonEquivalentDecls;
+  llvm::DenseSet<std::pair<const Decl *, const Decl *>> &NonEquivalentDecls;
 
   StructuralEquivalenceKind EqKind;
 
@@ -70,11 +70,10 @@ struct StructuralEquivalenceContext {
   bool LastDiagFromC2 = false;
 
   StructuralEquivalenceContext(
-      ASTContext &FromCtx, ASTContext &ToCtx,
-      llvm::DenseSet<std::pair<Decl *, Decl *>> &NonEquivalentDecls,
-      StructuralEquivalenceKind EqKind,
-      bool StrictTypeSpelling = false, bool Complain = true,
-      bool ErrorOnTagTypeMismatch = false)
+      const ASTContext &FromCtx, const ASTContext &ToCtx,
+      llvm::DenseSet<std::pair<const Decl *, const Decl *>> &NonEquivalentDecls,
+      StructuralEquivalenceKind EqKind, bool StrictTypeSpelling = false,
+      bool Complain = true, bool ErrorOnTagTypeMismatch = false)
       : FromCtx(FromCtx), ToCtx(ToCtx), NonEquivalentDecls(NonEquivalentDecls),
         EqKind(EqKind), StrictTypeSpelling(StrictTypeSpelling),
         ErrorOnTagTypeMismatch(ErrorOnTagTypeMismatch), Complain(Complain) {}
@@ -88,7 +87,7 @@ struct StructuralEquivalenceContext {
   /// ASTStructuralEquivalence.cpp) must never call this function because that
   /// will wreak havoc the internal state (\c DeclsToCheck and
   /// \c VisitedDecls members) and can cause faulty equivalent results.
-  bool IsEquivalent(Decl *D1, Decl *D2);
+  bool IsEquivalent(const Decl *D1, const Decl *D2);
 
   /// Determine whether the two types are structurally equivalent.
   /// Implementation functions (all static functions in
@@ -102,7 +101,7 @@ struct StructuralEquivalenceContext {
   /// ASTStructuralEquivalence.cpp) must never call this function because that
   /// will wreak havoc the internal state (\c DeclsToCheck and
   /// \c VisitedDecls members) and can cause faulty equivalent results.
-  bool IsEquivalent(Stmt *S1, Stmt *S2);
+  bool IsEquivalent(const Stmt *S1, const Stmt *S2);
 
   /// Find the index of the given anonymous struct/union within its
   /// context.
@@ -115,7 +114,7 @@ struct StructuralEquivalenceContext {
   /// FIXME: This is needed by ASTImporter and ASTStructureEquivalence. It
   /// probably makes more sense in some other common place then here.
   static llvm::Optional<unsigned>
-  findUntaggedStructOrUnionIndex(RecordDecl *Anon);
+  findUntaggedStructOrUnionIndex(const RecordDecl *Anon);
 
   // If ErrorOnTagTypeMismatch is set, return the the error, otherwise get the
   // relevant warning for the input error diagnostic.
@@ -131,12 +130,12 @@ private:
   /// Check for common properties at Finish.
   /// \returns true if D1 and D2 may be equivalent,
   /// false if they are for sure not.
-  bool CheckCommonEquivalence(Decl *D1, Decl *D2);
+  bool CheckCommonEquivalence(const Decl *D1, const Decl *D2);
 
   /// Check for class dependent properties at Finish.
   /// \returns true if D1 and D2 may be equivalent,
   /// false if they are for sure not.
-  bool CheckKindSpecificEquivalence(Decl *D1, Decl *D2);
+  bool CheckKindSpecificEquivalence(const Decl *D1, const Decl *D2);
 };
 
 } // namespace clang
