@@ -8226,3 +8226,10 @@ def dxc_disable_validation : DXCFlag<"Vd">,
 def : Option<["/", "-"], "Qembed_debug", KIND_FLAG>, Group<dxc_Group>,
   Flags<[Ignored, NoXarchOption]>, Visibility<[DXCOption]>,
   HelpText<"Embed PDB in shader container (ignored)">;
+
+defm explicit_function_params : BoolOption<"f", "explicit-function-params",
+  LangOpts<"ExplicitCXXParams">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption], "Whether to support the 'explicit' "
+  "function parameters proposal.">,
+  NegFlag<SetFalse>, BothFlags<[], [ClangOption, CC1Option]>>,
+  Group<f_clang_Group>;

@@ -266,3 +266,7 @@ namespace PR18777 {
   struct S { explicit operator bool() const; } s;
   int *p = new int(s); // expected-error {{no viable conversion}}
 }
+
+int explicitParam(explicit int i) { // expected-error {{proposed extension feature}}
+  return i;
+}

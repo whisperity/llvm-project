@@ -491,6 +491,9 @@ public:
   // received as a result of a standard operator new (-fcheck-new)
   bool CheckNew = false;
 
+  /// Whether to support the 'explicit' function parameters feature proposal.
+  bool ExplicitFunctionParams = false;
+
   LangOptions();
 
   /// Set language defaults for the given input language and

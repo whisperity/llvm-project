@@ -5151,6 +5151,9 @@ Decl *Sema::ParsedFreeStandingDeclSpec(Scope *S, AccessSpecifier AS,
     return TagD;
   }
 
+  if (DS.hasExplicitSpecifier())
+    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
+
   DiagnoseFunctionSpecifiers(DS);
 
   if (DS.isFriendSpecified()) {
@@ -6707,10 +6710,6 @@ void Sema::DiagnoseFunctionSpecifiers(const DeclSpec &DS) {
     Diag(DS.getVirtualSpecLoc(),
          diag::err_virtual_non_function);
 
-  if (DS.hasExplicitSpecifier())
-    Diag(DS.getExplicitSpecLoc(),
-         diag::err_explicit_non_function);
-
   if (DS.isNoreturnSpecified())
     Diag(DS.getNoreturnSpecLoc(),
          diag::err_noreturn_non_function);
@@ -6728,6 +6727,9 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
     DC = CurContext;
     Previous.clear();
   }
+
+  if (const auto &DS = D.getDeclSpec(); DS.hasExplicitSpecifier())
+    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
 
   DiagnoseFunctionSpecifiers(D.getDeclSpec());
 
@@ -7573,6 +7575,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
                                    : diag::warn_deprecated_register)
       << FixItHint::CreateRemoval(D.getDeclSpec().getStorageClassSpecLoc());
   }
+
+  if (const auto &DS = D.getDeclSpec(); DS.hasExplicitSpecifier())
+    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
 
   DiagnoseFunctionSpecifiers(D.getDeclSpec());
 
@@ -14874,6 +14879,11 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
     Diag(DS.getConstexprSpecLoc(), diag::err_invalid_constexpr)
         << 0 << static_cast<int>(D.getDeclSpec().getConstexprSpecifier());
 
+  if (DS.hasExplicitSpecifier()) {
+    if (!getLangOpts().ExplicitFunctionParams)
+      Diag(DS.getExplicitSpecLoc(), diag::err_explicit_param_is_extension);
+  }
+
   DiagnoseFunctionSpecifiers(DS);
 
   CheckFunctionOrTemplateParamDeclarator(S, D);
@@ -18124,6 +18134,9 @@ FieldDecl *Sema::HandleField(Scope *S, RecordDecl *Record,
       TInfo = Context.getTrivialTypeSourceInfo(T, Loc);
     }
   }
+
+  if (const auto &DS = D.getDeclSpec(); DS.hasExplicitSpecifier())
+    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
 
   DiagnoseFunctionSpecifiers(D.getDeclSpec());
 

@@ -1904,11 +1904,13 @@ def err_virtual_member_function_template : Error<
 def err_static_overrides_virtual : Error<
   "'static' member function %0 overrides a virtual function in a base class">;
 def err_explicit_non_function : Error<
-  "'explicit' can only appear on non-static member functions">;
+  "'explicit' can only appear on non-static member functions and parameters">;
 def err_explicit_out_of_class : Error<
-  "'explicit' can only be specified inside the class definition">;
+  "'explicit' for functions must be specified within the class definition">;
 def err_explicit_non_ctor_or_conv_function : Error<
-  "'explicit' can only be applied to a constructor or conversion function">;
+  "'explicit' functions can only be constructors or conversion functions">;
+def err_explicit_param_is_extension : Error<
+  "'explicit' function parameters are an optional, proposed extension feature">;
 def err_static_not_bitfield : Error<"static member %0 cannot be a bit-field">;
 def err_static_out_of_line : Error<
   "'static' can only be specified inside the class definition">;

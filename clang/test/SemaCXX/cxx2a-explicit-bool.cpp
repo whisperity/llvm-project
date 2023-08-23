@@ -66,10 +66,10 @@ C<0> c1 = 0; // expected-error {{no viable conversion}}
 C<1> c2 = 0.0;
 C<1> c3 = 0;
 
-explicit(false) void f(int);// expected-error {{'explicit' can only be specified inside the class definition}}
+explicit(false) void f(int);// expected-error {{'explicit' for functions must be specified within the class definition}}
 
 struct D {
-  explicit(false) void f(int);// expected-error {{'explicit' can only be applied to a constructor or conversion function}}
+  explicit(false) void f(int);// expected-error {{'explicit' functions can only be constructors or conversion functions}}
 };
 
 template <typename T> struct E {
