@@ -1013,15 +1013,6 @@ protected:
     /// Whether this parameter is an ObjC method parameter or not.
     unsigned IsObjCMethodParam : 1;
 
-    /// Whether this parameter is marked explicit.
-    unsigned IsExplicit : 1;
-
-    // FIXME: Support explicit specifiers for templated parameters and
-    // allocate the specifier appropriately.
-    // (C.f. CXXConstructorDeclBitfields)
-    unsigned /* HasTrailingExplicitSpecifier */ : 1;
-    unsigned /* IsSimpleExplicit */ : 1;
-
     /// If IsObjCMethodParam, a Decl::ObjCDeclQualifier.
     /// Otherwise, the number of function parameter scopes enclosing
     /// the function parameter scope in which this parameter was
@@ -1744,7 +1735,6 @@ protected:
     assert(ParmVarDeclBits.DefaultArgKind == DAK_None);
     assert(ParmVarDeclBits.IsKNRPromoted == false);
     assert(ParmVarDeclBits.IsObjCMethodParam == false);
-    assert(ParmVarDeclBits.IsExplicit == false);
     setDefaultArg(DefArg);
   }
 
@@ -1873,9 +1863,6 @@ public:
   }
 
   QualType getOriginalType() const;
-
-  bool isExplicit() const { return ParmVarDeclBits.IsExplicit; }
-  void setExplicit(bool Explicit) { ParmVarDeclBits.IsExplicit = Explicit; }
 
   /// Sets the function declaration that owns this
   /// ParmVarDecl. Since ParmVarDecls are often created before the

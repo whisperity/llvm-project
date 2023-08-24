@@ -8228,7 +8228,7 @@ def : Option<["/", "-"], "Qembed_debug", KIND_FLAG>, Group<dxc_Group>,
   HelpText<"Embed PDB in shader container (ignored)">;
 
 defm explicit_function_params : BoolOption<"f", "explicit-function-params",
-  LangOpts<"ExplicitFunctionParams">, DefaultFalse,
+  LangOpts<"ExplicitCXXParams">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption], "Whether to support the 'explicit' "
   "function parameters proposal.">,
   NegFlag<SetFalse>, BothFlags<[], [ClangOption, CC1Option]>>,

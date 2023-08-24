@@ -14879,6 +14879,11 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
     Diag(DS.getConstexprSpecLoc(), diag::err_invalid_constexpr)
         << 0 << static_cast<int>(D.getDeclSpec().getConstexprSpecifier());
 
+  if (DS.hasExplicitSpecifier()) {
+    if (!getLangOpts().ExplicitFunctionParams)
+      Diag(DS.getExplicitSpecLoc(), diag::err_explicit_param_is_extension);
+  }
+
   DiagnoseFunctionSpecifiers(DS);
 
   CheckFunctionOrTemplateParamDeclarator(S, D);
@@ -14911,10 +14916,6 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
     }
   }
 
-  bool IsExplicit = DS.hasExplicitSpecifier();
-  if (IsExplicit && !getLangOpts().ExplicitFunctionParams)
-    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_param_is_extension);
-
   // Temporarily put parameter variables in the translation unit, not
   // the enclosing context.  This prevents them from accidentally
   // looking like class members in C++.
@@ -14935,11 +14936,9 @@ Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (II)
     IdResolver.AddDecl(New);
 
-  New->setExplicit(IsExplicit);
-
   ProcessDeclAttributes(S, New, D);
 
-  if (DS.isModulePrivateSpecified())
+  if (D.getDeclSpec().isModulePrivateSpecified())
     Diag(New->getLocation(), diag::err_module_private_local)
         << 1 << New << SourceRange(D.getDeclSpec().getModulePrivateSpecLoc())
         << FixItHint::CreateRemoval(D.getDeclSpec().getModulePrivateSpecLoc());
