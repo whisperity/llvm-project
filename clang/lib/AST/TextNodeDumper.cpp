@@ -1958,6 +1958,9 @@ void TextNodeDumper::VisitVarDecl(const VarDecl *D) {
     OS << " inline";
   if (D->isConstexpr())
     OS << " constexpr";
+  if (const auto *Parm = dyn_cast_or_null<ParmVarDecl>(D);
+      Parm && Parm->isExplicit())
+    OS << " explicit";
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit:

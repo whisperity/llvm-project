@@ -1,6 +1,7 @@
 // Test without serialization:
 // RUN: %clang_cc1 -std=c++11 -triple x86_64-linux-gnu -fms-extensions \
-// RUN: -ast-dump -ast-dump-filter Test %s \
+// RUN:     -fexplicit-function-params \
+// RUN:     -ast-dump -ast-dump-filter Test %s \
 // RUN: | FileCheck --strict-whitespace %s
 //
 // Test with serialization: FIXME: Find why the outputs differs and fix it!
@@ -36,6 +37,15 @@ namespace testVarDeclNRVO {
 // CHECK-NEXT: | `-VarDecl{{.*}} TestVarDeclNRVO 'A':'testVarDeclNRVO::A' nrvo callinit
 // CHECK-NEXT: |   `-CXXConstructExpr
 // CHECK-NEXT: `-ReturnStmt{{.*}} nrvo_candidate(Var {{.*}} 'TestVarDeclNRVO' 'A':'testVarDeclNRVO::A')
+
+void TestParmVarDeclExplicit(int TestNormal,
+                             explicit int TestExplInt,
+                             explicit double TestExplDouble);
+// FIXME: Should print '(int, explicit int, explicit double)'...
+// CHECK:      FunctionDecl{{.*}} TestParmVarDeclExplicit 'void (int, int, double)'
+// CHECK-NEXT: |-ParmVarDecl{{.*}} TestNormal 'int'
+// CHECK-NEXT: |-ParmVarDecl{{.*}} TestExplInt 'int' explicit
+// CHECK-NEXT: `-ParmVarDecl{{.*}} TestExplDouble 'double' explicit
 
 void testParmVarDeclInit(int TestParmVarDeclInit = 0);
 // CHECK:      ParmVarDecl{{.*}} TestParmVarDeclInit 'int'
