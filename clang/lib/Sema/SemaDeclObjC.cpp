@@ -5204,9 +5204,6 @@ Decl *Sema::ActOnObjCExceptionDecl(Scope *S, Declarator &D) {
      << DeclSpec::getSpecifierName(TSCS);
   D.getMutableDeclSpec().ClearStorageClassSpecs();
 
-  if (const auto &DS = D.getDeclSpec(); DS.hasExplicitSpecifier())
-    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
-
   DiagnoseFunctionSpecifiers(D.getDeclSpec());
 
   // Check that there are no default arguments inside the type of this

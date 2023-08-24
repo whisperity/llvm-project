@@ -18908,9 +18908,6 @@ MSPropertyDecl *Sema::HandleMSProperty(Scope *S, RecordDecl *Record,
     }
   }
 
-  if (const auto &DS = D.getDeclSpec(); DS.hasExplicitSpecifier())
-    Diag(DS.getExplicitSpecLoc(), diag::err_explicit_non_function);
-
   DiagnoseFunctionSpecifiers(D.getDeclSpec());
 
   if (D.getDeclSpec().isInlineSpecified())
