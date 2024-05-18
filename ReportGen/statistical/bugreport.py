@@ -22,6 +22,10 @@ def match_all_to_list(pattern, string):
     return out
 
 
+def _tear_tagged_type(t):
+    return re.sub(r"^(struct|class|enum)( )?(.*)$", r'\3', t)
+
+
 def sanitise_typename(typename):
     """
     Tear off, from the point of view of this script, unnecessary qualifiers
@@ -53,11 +57,8 @@ def sanitise_typename(typename):
     'int *'
     """
 
-    def tear_signedunsigned(t):
-        return re.sub(r"^(un)?signed (.*)$", r'\2', t)
-
-    def tear_tagged_type(t):
-        return re.sub(r"^(struct|class|enum)( )?(.*)$", r'\3', t)
+    def tear_signed_unsigned(t):
+        return re.sub(r"^(un)?signed (.*)", r'\2', t)
 
     def tear_qualifier_left(t):
         return re.sub(r"( )?(const|volatile) (.*?)", r'\3', t)
@@ -76,12 +77,105 @@ def sanitise_typename(typename):
         before = typename
 
         typename = typename.strip()
-        typename = tear_signedunsigned(typename)
-        typename = tear_tagged_type(typename)
+        typename = tear_signed_unsigned(typename)
+        typename = _tear_tagged_type(typename)
         typename = tear_qualifier_left(typename)
         typename = tear_ptrref_qualifier_right(typename)
         typename = tear_reference(typename)
         typename = fix_ptr_at_end(typename)
+
+        if before == typename:
+            # No change, fix point reached.
+            break
+
+    return typename
+
+
+def mask_typename_keep_type_constructors(typename):
+    """
+    Tear off, from the point of view of this script, unnecessary names of types
+    from the checker output, and keep only the generic type constructions.
+
+    >>> mask_typename_keep_type_constructors("T")
+    'T'
+    >>> mask_typename_keep_type_constructors("int")
+    'T'
+    >>> mask_typename_keep_type_constructors("const T&")
+    'const T&'
+    >>> mask_typename_keep_type_constructors("T const&")
+    'const T&'
+    >>> mask_typename_keep_type_constructors("int *")
+    'T*'
+    >>> mask_typename_keep_type_constructors("const int *")
+    'const T*'
+    >>> mask_typename_keep_type_constructors("int *const")
+    'T* const'
+    >>> mask_typename_keep_type_constructors("T *const")
+    'T* const'
+    >>> mask_typename_keep_type_constructors("T* const")
+    'T* const'
+    >>> mask_typename_keep_type_constructors("const struct utf8_data *")
+    'const T*'
+    >>> mask_typename_keep_type_constructors("volatile enum colour_diff * const")
+    'volatile T* const'
+    >>> mask_typename_keep_type_constructors("volatile signed char * const &")
+    'volatile T* const&'
+    >>> mask_typename_keep_type_constructors("const volatile struct waffle_iron &")
+    'const volatile T&'
+    >>> mask_typename_keep_type_constructors("const volatile unsigned int * const restrict")
+    'const volatile T* const restrict'
+    """
+
+    def mask_to_T(t):
+        return re.sub(r"^([^\*&]*)( )*([\*&]*)( )*(.*?)$", r"T\3\5", t)
+
+    def extract_left_qualifiers(t):
+        match = re.match(r"( )?(((const|volatile)( )?)*)(.*?)", t)
+        if match:
+            return match.group(2).strip(), \
+                re.sub(r"^((const|volatile)( )?)*(.*?)", r'\4', t)
+        return "", t
+
+    def extract_right_qualifiers(t):
+        match = re.match(
+            r"(.*?)( \*?)( )?(((const|volatile|(?:__)?restrict)( )?)*)(&?)",
+            t)
+        if match:
+            return match.group(4).strip(), re.sub(
+                r"(.*?)( \*?)( )?((const|volatile|(?:__)?restrict)( )?)*(&?)$",
+                r'\1\2\6\7',
+                t)
+        return "", t
+
+    def strip_ptr_ref(t):
+        match = re.match(r"^(.*?)( )?((\**( )?)*)((&( )?)*)$", t)
+        if not match:
+            return t
+        ptrs, refs = match.group(3).count('*'), match.group(6).count('&')
+        return match.group(1).rstrip(), ptrs, refs
+
+    while True:
+        before = typename
+
+        typename = typename.strip()
+        typename = typename.replace("signed ", '').replace("unsigned ", '')
+        typename = _tear_tagged_type(typename)
+        lquals, typename = extract_left_qualifiers(typename)
+        typename = _tear_tagged_type(typename)
+        rquals, typename = extract_right_qualifiers(typename)
+        typename = mask_to_T(typename)
+        typename, ptrs, refs = strip_ptr_ref(typename)
+
+        if ptrs and not refs:
+            typename = lquals + ' ' + typename + ('*' * ptrs) + ' ' + rquals
+        elif refs and not ptrs:
+            typename = lquals + rquals + ' ' + typename + ('&' * refs)
+        elif ptrs and refs:
+            typename = lquals + ' ' + typename + ('*' * ptrs) + ' ' + rquals + ('&' * refs)
+        else:
+            typename = lquals + ' ' + typename + ' ' + rquals
+
+        typename = typename.strip()
 
         if before == typename:
             # No change, fix point reached.
