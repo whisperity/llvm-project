@@ -1,3 +1,4 @@
+from collections import Counter
 import json
 import sys
 import numpy
@@ -5,7 +6,7 @@ from scipy import stats
 from tabulate import tabulate
 
 from codechecker import cmdline_client
-from .bugreport import BugReport
+from .bugreport import BugReport, canonicalise_type
 from .function_match import FunctionMatch
 
 
@@ -88,6 +89,22 @@ def handle_configuration(project, min_length, cvr=False, implicit=False,
                   "were not categorised:\n")
             [print(' * `%s`' % t)
              for t in sorted(list(set(uncategorisable_types)))]
+
+        print("\nNumber of times a **concrete** type was involved in a "
+              "diagnostic:\n")
+        cnt = Counter()
+        for R in reports:
+            for T in R.raw_involved_types:
+                cnt.update({T: 1})
+        [print(' * `%s`: %d' % (T, n)) for T, n in cnt.most_common()]
+
+        print("\nNumber of times a **type construction blueprint** was "
+              "involved in a diagnostic:\n")
+        cnt = Counter()
+        for R in reports:
+            for T in R.canonical_involved_types:
+                cnt.update({T: 1})
+        [print(' * `%s`: %d' % (T, n)) for T, n in cnt.most_common()]
 
     print("#### Entire project")
     _finding_breakdown(None)

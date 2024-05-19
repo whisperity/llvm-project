@@ -91,97 +91,174 @@ def sanitise_typename(typename):
     return typename
 
 
-def mask_typename_keep_type_constructors(typename):
+_REFS = re.compile(r"((?:(?:&) *)+)$")
+_PTR_QUALS = re.compile(r"(\*) *((?:(?:const|volatile|(?:__)?restrict) *)*)$")
+_T_QUALS = re.compile(r"^ *((?:(?:const|volatile|(?:__)?restrict) *)+)")
+_QUALS_T = re.compile(r"((?:(?:const|volatile|(?:__)?restrict) *)+)$")
+_FUNCTION_PTR_REF = re.compile(r"^(.*?) *\((.*?)\) *\((.*?)\)$")
+_FUNCTION_PTR_REF_WITHOUT_MAYBE_NAME = re.compile(
+    r".*?"
+    r"((?:(?:\*)? *(?:(?:const|volatile|(?:__)?restrict) *)*)*(?:(?:&) *)*)"
+    r".*?")
+_FUNCTION = re.compile(r"^(.*?) *\((.*?)\)$")
+
+def canonicalise_type(t):
     """
     Tear off, from the point of view of this script, unnecessary names of types
-    from the checker output, and keep only the generic type constructions.
+    from the checker output, and keep only the generic type constructions,
+    effectively reducing it to "qualifier[s] T* qualifier[s]&"-like sequences.
 
-    >>> mask_typename_keep_type_constructors("T")
+    >>> canonicalise_type("int")
     'T'
-    >>> mask_typename_keep_type_constructors("int")
+    >>> canonicalise_type("struct user_defined_foo")
     'T'
-    >>> mask_typename_keep_type_constructors("const T&")
-    'const T&'
-    >>> mask_typename_keep_type_constructors("T const&")
-    'const T&'
-    >>> mask_typename_keep_type_constructors("int *")
+    >>> canonicalise_type("int*")
     'T*'
-    >>> mask_typename_keep_type_constructors("const int *")
+    >>> canonicalise_type("int *")
+    'T*'
+    >>> canonicalise_type("const int *")
     'const T*'
-    >>> mask_typename_keep_type_constructors("int *const")
-    'T* const'
-    >>> mask_typename_keep_type_constructors("T *const")
-    'T* const'
-    >>> mask_typename_keep_type_constructors("T* const")
-    'T* const'
-    >>> mask_typename_keep_type_constructors("const struct utf8_data *")
-    'const T*'
-    >>> mask_typename_keep_type_constructors("volatile enum colour_diff * const")
+    >>> canonicalise_type("int * const volatile")
+    'T* const volatile'
+    >>> canonicalise_type("const int *const")
+    'const T* const'
+    >>> canonicalise_type("const char **")
+    'const T**'
+    >>> canonicalise_type("const char * *")
+    'const T**'
+    >>> canonicalise_type("struct blame_entry***")
+    'T***'
+    >>> canonicalise_type("struct blame_entry * * *")
+    'T***'
+    >>> canonicalise_type("int const")
+    'const T'
+    >>> canonicalise_type("const std::string&")
+    'const T&'
+    >>> canonicalise_type("std::string const &")
+    'const T&'
+    >>> canonicalise_type("const cc::service::core::FileInfo &")
+    'const T&'
+    >>> canonicalise_type("volatile enum colour_diff * const")
     'volatile T* const'
-    >>> mask_typename_keep_type_constructors("volatile signed char * const &")
+    >>> canonicalise_type("volatile signed char * const &")
     'volatile T* const&'
-    >>> mask_typename_keep_type_constructors("const volatile struct waffle_iron &")
+    >>> canonicalise_type("const volatile struct waffle_iron &")
     'const volatile T&'
-    >>> mask_typename_keep_type_constructors("const volatile unsigned int * const restrict")
+    >>> canonicalise_type("const volatile unsigned int * const restrict")
     'const volatile T* const restrict'
+    >>> canonicalise_type("bool (clang::CXXRecordDecl::*)()")
+    'T (*)()'
+    >>> canonicalise_type("int (*main)(int argc, char* argv[])")
+    'T (*)()'
+    >>> canonicalise_type("int (* const main)(int argc, char* argv[])")
+    'T (* const)()'
+    >>> canonicalise_type("int (&main)(int argc, char* argv[])")
+    'T (&)()'
+    >>> canonicalise_type("int (*)(POLLINFO*, short *)")
+    'T (*)()'
+    >>> canonicalise_type("int (&&main)(int argc, char* argv[])")
+    'T (&&)()'
+    >>> canonicalise_type("int (*&&main)(int argc, char* argv[])")
+    'T (*&&)()'
+    >>> canonicalise_type("T*const &&")
+    'T* const&&'
+    >>> canonicalise_type("int (*const &&main)(int argc, char* argv[])")
+    'T (* const&&)()'
+    >>> canonicalise_type("char * (const struct _zend_encoding *, char *)")
+    'T ()()'
+    >>> canonicalise_type("void (struct job *)")
+    'T ()()'
+    >>> canonicalise_type("void (void*, const char*)")
+    'T ()()'
     """
+    # print(">>> canonicalise_type(" + t + ")", file=sys.stderr)
 
-    def mask_to_T(t):
-        return re.sub(r"^([^\*&]*)( )*([\*&]*)( )*(.*?)$", r"T\3\5", t)
+    # First, unsigned and signed are not interesting at all, and easy to
+    # replace.
+    t = t.strip().replace("unsigned ", '').replace("signed ", '')
 
-    def extract_left_qualifiers(t):
-        match = re.match(r"( )?(((const|volatile)( )?)*)(.*?)", t)
-        if match:
-            return match.group(2).strip(), \
-                re.sub(r"^((const|volatile)( )?)*(.*?)", r'\4', t)
-        return "", t
+    # Check if the type is of a function type signature, or a function pointer
+    # or reference.
+    match = _FUNCTION_PTR_REF.search(t)
+    if match:
+        # print("--- Function ptr/reference:", match.groups(), file=sys.stderr)
+        t2 = match.group(2).strip()
+        match2 = _FUNCTION_PTR_REF_WITHOUT_MAYBE_NAME.search(t2)
+        if match2 and match2.group(1):
+            # print("--- Function ptr/ref structure matched:", match2.groups(),
+            #       file=sys.stderr)
+            # Need to inject a dummy 'T', as the matched group will only be
+            # something like "* const* volatile *restrict *&&" to canonicalise.
+            t2 = 'T' + match2.group(1).strip()
+        # print(">-> Canonicalising [" + t2 + "]", file=sys.stderr)
+        # Remove the leading T, we only need the appropriate parentheses.
+        t2_canonical = canonicalise_type(t2).lstrip('T')
+        # print("<<< Function pointer/reference [T (" + t2_canonical + ")()]",
+        #       file=sys.stderr)
+        return "T (" + t2_canonical + ")()"
 
-    def extract_right_qualifiers(t):
-        match = re.match(
-            r"(.*?)( \*?)( )?(((const|volatile|(?:__)?restrict)( )?)*)(&?)",
-            t)
-        if match:
-            return match.group(4).strip(), re.sub(
-                r"(.*?)( \*?)( )?((const|volatile|(?:__)?restrict)( )?)*(&?)$",
-                r'\1\2\6\7',
-                t)
-        return "", t
+    match = _FUNCTION.search(t)
+    if match:
+        # print("--- Function (proto)type:", match.groups(), file=sys.stderr)
+        return "T ()()"
 
-    def strip_ptr_ref(t):
-        match = re.match(r"^(.*?)( )?((\**( )?)*)((&( )?)*)$", t)
-        if not match:
-            return t
-        ptrs, refs = match.group(3).count('*'), match.group(6).count('&')
-        return match.group(1).rstrip(), ptrs, refs
+    # Check if the type is a reference. If so, the reference can not be
+    # qualified, only the referred type.
+    match = _REFS.search(t)
+    if match:
+        # print("--- Reference:", match.groups(), file=sys.stderr)
+        refs = match.group(1).count('&')
+        t2 = _REFS.sub('', t).strip()
+        # print(">-> Canonicalising [" + t2 + "]", file=sys.stderr)
+        t2_canonical = canonicalise_type(t2)
+        # print("<<< [" + ('&' * refs) + "] reference to [" + t2_canonical + "]",
+        #       file=sys.stderr)
+        return t2_canonical + ('&' * refs)
 
-    while True:
-        before = typename
+    # Check if the type is a pointer. If so, the pointer itself might be
+    # qualified.
+    match = _PTR_QUALS.search(t)
+    if match:
+        # print("--- Potentially qual'd ptr match:", match.groups(),
+        #       file=sys.stderr)
+        quals = match.group(2)
+        const, volatile, restrict = tuple(map(
+            lambda q: q in quals, ["const", "volatile", "restrict"]))
+        t2 = _PTR_QUALS.sub('', t).strip()
+        # print(">-> Canonicalising [" + t2 + "]", file=sys.stderr)
+        t2_canonical = canonicalise_type(t2)
+        # print("<<< [" + quals + "] pointer to [" + t2_canonical + "]",
+        #       file=sys.stderr)
+        return t2_canonical + '*' + \
+            (" const" if const else '') + \
+            (" volatile" if volatile else '') + \
+            (" restrict" if restrict else '')
 
-        typename = typename.strip()
-        typename = typename.replace("signed ", '').replace("unsigned ", '')
-        typename = _tear_tagged_type(typename)
-        lquals, typename = extract_left_qualifiers(typename)
-        typename = _tear_tagged_type(typename)
-        rquals, typename = extract_right_qualifiers(typename)
-        typename = mask_to_T(typename)
-        typename, ptrs, refs = strip_ptr_ref(typename)
+    # Search for local qualifiers on the type (which is no longer a pointer!)
+    # either at the front...
+    match = _T_QUALS.search(t)
+    t2 = _T_QUALS.sub('', t).strip()
+    if not match:
+        # ... or the back.
+        match = _QUALS_T.search(t)
+        t2 = _QUALS_T.sub('', t).strip()
+    if match:
+        # print("--- Qualifier match:", match.groups(), file=sys.stderr)
+        quals = match.group(1)
+        const, volatile, restrict = tuple(map(
+            lambda q: q in quals, ["const", "volatile", "restrict"]))
+        # print(">-> Canonicalising [" + t2 + "]", file=sys.stderr)
+        t2_canonical = canonicalise_type(t2)
+        # print("<<< [" + quals + "] qualified [" + t2_canonical + "]",
+        #       file=sys.stderr)
+        return ("const " if const else '') + \
+            ("volatile " if volatile else '') + \
+            ("restrict" if restrict else '') + t2_canonical
 
-        if ptrs and not refs:
-            typename = lquals + ' ' + typename + ('*' * ptrs) + ' ' + rquals
-        elif refs and not ptrs:
-            typename = lquals + rquals + ' ' + typename + ('&' * refs)
-        elif ptrs and refs:
-            typename = lquals + ' ' + typename + ('*' * ptrs) + ' ' + rquals + ('&' * refs)
-        else:
-            typename = lquals + ' ' + typename + ' ' + rquals
-
-        typename = typename.strip()
-
-        if before == typename:
-            # No change, fix point reached.
-            break
-
-    return typename
+    # If nothing else matches, replace whatever the type was with a pure 'T'.
+    # print("<<< Final rewrite: [" + t + "] --> [" + 'T' + "]",
+    #       file=sys.stderr)
+    return 'T'
 
 
 class BugReport:
@@ -211,7 +288,7 @@ class BugReport:
 
         exact_type = PATTERN_EXACT_TYPE.search(report['checkerMsg'])
         self.exact_type = exact_type.group(1) if exact_type else None
-        self.involved_types = [self.exact_type] if exact_type else []
+        self.raw_involved_types = [self.exact_type] if exact_type else []
         assert(bool(self.exact_type) == self.is_exact)
 
         steps = [e['msg'] for e in report['details']['pathEvents']]
@@ -244,10 +321,12 @@ class BugReport:
                 if any(t.endswith(' &') for t in types_for_step):
                     self.has_ref_bind = True
 
-                self.involved_types += types_for_step
+                self.raw_involved_types += types_for_step
 
         self.involved_types = {sanitise_typename(t)
-                               for t in set(self.involved_types)}
+                               for t in self.raw_involved_types}
+        self.canonical_involved_types = {canonicalise_type(t)
+                                         for t in self.raw_involved_types}
 
         if not self.involved_types:
             print("[WARNING] For the following report, 'involved_types' "
